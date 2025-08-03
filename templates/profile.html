@@ -81,8 +81,29 @@
                 
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
-                        <span>Total Amount:</span>
+                        <span>Total Amount Contributed:</span>
                         <strong class="text-success">${{ "%.2f"|format(stats.total_amount) }}</strong>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Current Balance:</span>
+                        <strong class="text-primary">${{ "%.2f"|format(stats.current_balance) }}</strong>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Transfers Sent:</span>
+                        <strong>{{ stats.sent_transfers }}</strong>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Transfers Received:</span>
+                        <strong>{{ stats.received_transfers }}</strong>
                     </div>
                 </div>
                 
@@ -94,6 +115,12 @@
                     </div>
                 </div>
                 {% endif %}
+                
+                <div class="d-grid mt-3">
+                    <a href="/transfers" class="btn btn-outline-primary">
+                        <i class="fas fa-exchange-alt me-2"></i>Manage Transfers
+                    </a>
+                </div>
             </div>
         </div>
 

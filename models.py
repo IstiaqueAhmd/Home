@@ -44,3 +44,21 @@ class Contribution(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
+
+class TransferCreate(BaseModel):
+    recipient_username: str
+    amount: float
+    description: Optional[str] = None
+
+class Transfer(BaseModel):
+    id: Optional[str] = None
+    sender_username: str
+    recipient_username: str
+    amount: float
+    description: Optional[str] = None
+    date_created: datetime = datetime.now()
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }

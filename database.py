@@ -2,7 +2,7 @@ import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import DuplicateKeyError
 from typing import Optional, List
-from models import User, UserCreate, UserInDB, Contribution
+from models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate
 from auth import AuthManager
 from datetime import datetime
 from dotenv import load_dotenv
@@ -278,6 +278,13 @@ class Database:
             user_total_result.append(doc)
         user_total_amount = user_total_result[0]["total"] if user_total_result else 0
         
+        # User's current balance
+        user_balance = await self.get_user_balance(username)
+        
+        # User's transfer statistics
+        sent_transfers = await db.transfers.count_documents({"sender_username": username})
+        received_transfers = await db.transfers.count_documents({"recipient_username": username})
+        
         # User's recent contributions
         recent_contributions = []
         async for doc in db.contributions.find({"username": username}).sort("date_created", -1).limit(5):
@@ -287,6 +294,9 @@ class Database:
         return {
             "total_contributions": user_contributions,
             "total_amount": user_total_amount,
+            "current_balance": user_balance,
+            "sent_transfers": sent_transfers,
+            "received_transfers": received_transfers,
             "recent_contributions": recent_contributions
         }
     
@@ -455,3 +465,111 @@ class Database:
             "contributions_by_user": user_contributions,
             "contributions_by_product": product_contributions
         }
+
+    async def get_user_balance(self, username: str) -> float:
+        """Calculate user's available balance from contributions and transfers"""
+        db = await self.get_database()
+        
+        # Get total contributions
+        contributions_pipeline = [
+            {"$match": {"username": username}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]
+        
+        contributions_result = []
+        async for doc in db.contributions.aggregate(contributions_pipeline):
+            contributions_result.append(doc)
+        total_contributions = contributions_result[0]["total"] if contributions_result else 0
+        
+        # Get total sent transfers
+        sent_transfers_pipeline = [
+            {"$match": {"sender_username": username}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]
+        
+        sent_result = []
+        async for doc in db.transfers.aggregate(sent_transfers_pipeline):
+            sent_result.append(doc)
+        total_sent = sent_result[0]["total"] if sent_result else 0
+        
+        # Get total received transfers
+        received_transfers_pipeline = [
+            {"$match": {"recipient_username": username}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]
+        
+        received_result = []
+        async for doc in db.transfers.aggregate(received_transfers_pipeline):
+            received_result.append(doc)
+        total_received = received_result[0]["total"] if received_result else 0
+        
+        # Balance = contributions + received - sent
+        return total_contributions + total_received - total_sent
+
+    async def create_transfer(self, sender_username: str, transfer_data: TransferCreate) -> Transfer:
+        """Create a new transfer between users"""
+        db = await self.get_database()
+        
+        # Check if sender has sufficient balance
+        sender_balance = await self.get_user_balance(sender_username)
+        if sender_balance < transfer_data.amount:
+            raise ValueError("Insufficient balance for transfer")
+        
+        # Check if recipient exists
+        recipient = await self.get_user(transfer_data.recipient_username)
+        if not recipient:
+            raise ValueError("Recipient user not found")
+        
+        # Check if sender is not transferring to themselves
+        if sender_username == transfer_data.recipient_username:
+            raise ValueError("Cannot transfer to yourself")
+        
+        transfer_dict = {
+            "sender_username": sender_username,
+            "recipient_username": transfer_data.recipient_username,
+            "amount": transfer_data.amount,
+            "description": transfer_data.description or "",
+            "date_created": datetime.utcnow()
+        }
+        
+        result = await db.transfers.insert_one(transfer_dict)
+        transfer_dict["id"] = str(result.inserted_id)
+        return Transfer(**transfer_dict)
+
+    async def get_user_transfers(self, username: str) -> dict:
+        """Get all transfers for a user (sent and received)"""
+        db = await self.get_database()
+        
+        # Get sent transfers
+        sent_transfers = []
+        async for doc in db.transfers.find({"sender_username": username}).sort("date_created", -1):
+            doc["id"] = str(doc["_id"])
+            # Get recipient full name
+            recipient = await self.get_user(doc["recipient_username"])
+            doc["recipient_full_name"] = recipient.full_name if recipient else "Unknown"
+            sent_transfers.append(Transfer(**doc))
+        
+        # Get received transfers
+        received_transfers = []
+        async for doc in db.transfers.find({"recipient_username": username}).sort("date_created", -1):
+            doc["id"] = str(doc["_id"])
+            # Get sender full name
+            sender = await self.get_user(doc["sender_username"])
+            doc["sender_full_name"] = sender.full_name if sender else "Unknown"
+            received_transfers.append(Transfer(**doc))
+        
+        return {
+            "sent": sent_transfers,
+            "received": received_transfers
+        }
+
+    async def get_all_users(self) -> List[UserInDB]:
+        """Get all users for transfer recipient selection"""
+        db = await self.get_database()
+        users = []
+        
+        async for doc in db.users.find({}, {"hashed_password": 0}).sort("full_name", 1):
+            doc["id"] = str(doc["_id"])
+            users.append(UserInDB(**doc, hashed_password=""))
+        
+        return users

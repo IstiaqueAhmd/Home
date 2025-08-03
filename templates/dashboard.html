@@ -12,6 +12,9 @@
                 <button class="btn btn-primary me-2 sparkle" data-bs-toggle="modal" data-bs-target="#addContributionModal">
                     <i class="fas fa-plus-circle me-2"></i>Add Contribution
                 </button>
+                <a href="/transfers" class="btn btn-warning me-2">
+                    <i class="fas fa-exchange-alt me-2"></i>Transfer Funds
+                </a>
                 <a href="/all-contributions" class="btn btn-outline-info me-2">
                     <i class="fas fa-star me-2"></i>View All
                 </a>
@@ -28,7 +31,7 @@
 
 <!-- Stats Cards -->
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card bg-primary text-white h-100 sparkle">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -45,7 +48,7 @@
         </div>
     </div>
     
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card bg-success text-white h-100 sparkle">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -62,7 +65,24 @@
         </div>
     </div>
     
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100 sparkle">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1">Available Balance</h6>
+                        <h2 class="mb-0 fw-bold">${{ "%.2f"|format(user_balance) }}</h2>
+                        <small class="opacity-75">Ready to transfer</small>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-wallet fa-3x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
         <div class="card bg-info text-white h-100 sparkle">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">

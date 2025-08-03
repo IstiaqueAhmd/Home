@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 
 from database import Database
-from models import User, UserCreate, UserInDB, Token, Contribution
+from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate
 from auth import AuthManager
 
 # Load environment variables
@@ -145,6 +145,9 @@ async def dashboard_authenticated(request: Request):
         # Get user's contributions
         contributions = await db.get_user_contributions(user.username)
         
+        # Get user's current balance
+        user_balance = await db.get_user_balance(user.username)
+        
         # Get current month's summary
         from datetime import datetime
         now = datetime.now()
@@ -154,6 +157,7 @@ async def dashboard_authenticated(request: Request):
             "request": request, 
             "user": user,
             "contributions": contributions,
+            "user_balance": user_balance,
             "current_month_summary": current_month_summary,
             "current_month_name": now.strftime("%B")
         })
@@ -347,6 +351,73 @@ async def monthly_contributions(request: Request, year: int = None, month: int =
             "current_month": month,
             "month_name": datetime(year, month, 1).strftime("%B")
         })
+    except:
+        return RedirectResponse(url="/login")
+
+@app.get("/transfers", response_class=HTMLResponse)
+async def transfers_page(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        # Get user's transfers
+        transfers = await db.get_user_transfers(user.username)
+        
+        # Get user's current balance
+        balance = await db.get_user_balance(user.username)
+        
+        # Get all users for transfer form
+        all_users = await db.get_all_users()
+        # Remove current user from the list
+        available_users = [u for u in all_users if u.username != user.username]
+        
+        return templates.TemplateResponse("transfers.html", {
+            "request": request,
+            "user": user,
+            "transfers": transfers,
+            "balance": balance,
+            "available_users": available_users
+        })
+    except:
+        return RedirectResponse(url="/login")
+
+@app.post("/transfer")
+async def create_transfer(
+    request: Request,
+    recipient_username: str = Form(...),
+    amount: float = Form(...),
+    description: str = Form("")
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        # Validate amount
+        if amount <= 0:
+            return RedirectResponse(url="/transfers?error=Invalid amount", status_code=303)
+        
+        transfer_data = TransferCreate(
+            recipient_username=recipient_username,
+            amount=amount,
+            description=description
+        )
+        
+        try:
+            await db.create_transfer(user.username, transfer_data)
+            return RedirectResponse(url="/transfers?message=Transfer completed successfully", status_code=303)
+        except ValueError as e:
+            return RedirectResponse(url=f"/transfers?error={str(e)}", status_code=303)
+        
     except:
         return RedirectResponse(url="/login")
 

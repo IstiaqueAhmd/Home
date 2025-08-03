@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Transfers - House Finance Tracker{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Fund Transfers</h2>
+            
+            <!-- Balance Display -->
+            <div class="alert alert-info">
+                <h5>Your Current Balance: ${{ "%.2f"|format(balance) }}</h5>
+            </div>
+            
+            <!-- Messages -->
+            {% if request.query_params.get('message') %}
+            <div class="alert alert-success">
+                {{ request.query_params.get('message') }}
+            </div>
+            {% endif %}
+            
+            {% if request.query_params.get('error') %}
+            <div class="alert alert-danger">
+                {{ request.query_params.get('error') }}
+            </div>
+            {% endif %}
+            
+            <!-- Transfer Form -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Send Money</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/transfer">
+                        <div class="mb-3">
+                            <label for="recipient_username" class="form-label">Recipient</label>
+                            <select class="form-select" id="recipient_username" name="recipient_username" required>
+                                <option value="">Select a user...</option>
+                                {% for available_user in available_users %}
+                                <option value="{{ available_user.username }}">{{ available_user.full_name }} ({{ available_user.username }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Amount ($)</label>
+                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0.01" max="{{ balance }}" required>
+                            <div class="form-text">Maximum available: ${{ "%.2f"|format(balance) }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (Optional)</label>
+                            <textarea class="form-control" id="description" name="description" rows="2" placeholder="Optional description for this transfer"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Transfer</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Transfer History -->
+            <div class="row">
+                <!-- Sent Transfers -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Sent Transfers</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if transfers.sent %}
+                            <div class="list-group">
+                                {% for transfer in transfers.sent %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">To: {{ transfer.recipient_full_name }}</h6>
+                                        <small class="text-danger">-${{ "%.2f"|format(transfer.amount) }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ transfer.description or "No description" }}</p>
+                                    <small>{{ transfer.date_created.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-muted">No transfers sent yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Received Transfers -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Received Transfers</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if transfers.received %}
+                            <div class="list-group">
+                                {% for transfer in transfers.received %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">From: {{ transfer.sender_full_name }}</h6>
+                                        <small class="text-success">+${{ "%.2f"|format(transfer.amount) }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ transfer.description or "No description" }}</p>
+                                    <small>{{ transfer.date_created.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-muted">No transfers received yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
