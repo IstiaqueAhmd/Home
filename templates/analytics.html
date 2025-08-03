@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - House Finance Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>Analytics & Insights</h2>
+    <a href="/dashboard" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+    </a>
+</div>
+
+<!-- Overview Cards -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total Contributions</h6>
+                        <h2>{{ analytics.total_contributions }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-list fa-3x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total Amount</h6>
+                        <h2>${{ "%.2f"|format(analytics.total_amount) }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-dollar-sign fa-3x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contributions by User -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users me-2"></i>Contributions by Member</h5>
+            </div>
+            <div class="card-body">
+                {% if analytics.contributions_by_user %}
+                {% for user_contrib in analytics.contributions_by_user %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ user_contrib.full_name }}</strong>
+                            <br><small class="text-muted">@{{ user_contrib.username }}</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-success">${{ "%.2f"|format(user_contrib.total_amount) }}</span>
+                            <br><small class="text-muted">{{ user_contrib.count }} contributions</small>
+                        </div>
+                    </div>
+                    <div class="progress mt-2" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ (user_contrib.total_amount / analytics.total_amount * 100)|round(1) }}%">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted text-center">No contribution data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Products -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-shopping-cart me-2"></i>Top Products</h5>
+            </div>
+            <div class="card-body">
+                {% if analytics.contributions_by_product %}
+                {% for product in analytics.contributions_by_product[:10] %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-info">{{ product.product_name }}</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-success">${{ "%.2f"|format(product.total_amount) }}</span>
+                            <br><small class="text-muted">{{ product.count }} purchases</small>
+                        </div>
+                    </div>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar bg-info" role="progressbar" 
+                             style="width: {{ (product.total_amount / analytics.contributions_by_product[0].total_amount * 100)|round(1) }}%">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted text-center">No product data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Trends -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calendar me-2"></i>Monthly Trends</h5>
+            </div>
+            <div class="card-body">
+                {% if analytics.monthly_contributions %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Contributions</th>
+                                <th>Total Amount</th>
+                                <th>Average per Contribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for month in analytics.monthly_contributions %}
+                            <tr>
+                                <td>{{ month.year }}-{{ "%02d"|format(month.month) }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ month.count }}</span>
+                                </td>
+                                <td class="text-success">
+                                    <strong>${{ "%.2f"|format(month.total_amount) }}</strong>
+                                </td>
+                                <td>
+                                    ${{ "%.2f"|format(month.total_amount / month.count) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No monthly data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add any chart.js or other visualization scripts here if needed
+</script>
+{% endblock %}
