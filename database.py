@@ -2,7 +2,7 @@ import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import DuplicateKeyError
 from typing import Optional, List
-from models import User, UserCreate, UserInDB, Contribution, Transfer
+from models import User, UserCreate, UserInDB, Contribution
 from auth import AuthManager
 from datetime import datetime
 from dotenv import load_dotenv
@@ -299,147 +299,159 @@ class Database:
         )
         
         return result.modified_count > 0
-    
-    async def get_all_users_except(self, exclude_username: str) -> List[User]:
-        db = await self.get_database()
-        users = []
-        
-        async for doc in db.users.find({"username": {"$ne": exclude_username}, "is_active": True}):
-            doc["id"] = str(doc["_id"])
-            users.append(User(**doc))
-        
-        return users
-    
-    async def get_user_balance(self, username: str) -> float:
+
+    async def get_monthly_contributions(self, year: int = None, month: int = None) -> List[dict]:
+        """Get contributions filtered by month and year"""
         db = await self.get_database()
         
-        # Calculate balance from contributions (money spent)
-        contributions_pipeline = [
-            {"$match": {"username": username}},
-            {"$group": {"_id": None, "total_spent": {"$sum": "$amount"}}}
-        ]
+        # Build match condition
+        match_condition = {}
+        if year and month:
+            # Get contributions for specific month
+            from datetime import datetime
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1)
+            else:
+                end_date = datetime(year, month + 1, 1)
+            match_condition["date_created"] = {"$gte": start_date, "$lt": end_date}
+        elif year:
+            # Get contributions for entire year
+            from datetime import datetime
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year + 1, 1, 1)
+            match_condition["date_created"] = {"$gte": start_date, "$lt": end_date}
         
-        total_spent = 0
-        async for doc in db.contributions.aggregate(contributions_pipeline):
-            total_spent = doc["total_spent"]
-        
-        # Calculate money received from transfers
-        received_pipeline = [
-            {"$match": {"to_username": username}},
-            {"$group": {"_id": None, "total_received": {"$sum": "$amount"}}}
-        ]
-        
-        total_received = 0
-        async for doc in db.transfers.aggregate(received_pipeline):
-            total_received = doc["total_received"]
-        
-        # Calculate money sent via transfers
-        sent_pipeline = [
-            {"$match": {"from_username": username}},
-            {"$group": {"_id": None, "total_sent": {"$sum": "$amount"}}}
-        ]
-        
-        total_sent = 0
-        async for doc in db.transfers.aggregate(sent_pipeline):
-            total_sent = doc["total_sent"]
-        
-        # Balance = money received - money spent - money transferred out
-        balance = total_received - total_spent - total_sent
-        return balance
-    
-    async def create_transfer(self, from_username: str, to_username: str, amount: float, description: str = "") -> bool:
-        db = await self.get_database()
-        
-        try:
-            # Create transfer record
-            transfer_dict = {
-                "from_username": from_username,
-                "to_username": to_username,
-                "amount": amount,
-                "description": description,
-                "date_created": datetime.utcnow()
-            }
-            
-            result = await db.transfers.insert_one(transfer_dict)
-            return result.inserted_id is not None
-            
-        except Exception as e:
-            print(f"Transfer error: {e}")
-            return False
-    
-    async def get_user_transfers(self, username: str) -> List[dict]:
-        db = await self.get_database()
-        transfers = []
-        
-        # Get transfers where user is sender or receiver
+        # Aggregate contributions with user information
         pipeline = [
-            {
-                "$match": {
-                    "$or": [
-                        {"from_username": username},
-                        {"to_username": username}
-                    ]
-                }
-            },
+            {"$match": match_condition},
             {
                 "$lookup": {
                     "from": "users",
-                    "localField": "from_username",
+                    "localField": "username", 
                     "foreignField": "username",
-                    "as": "from_user_info"
+                    "as": "user_info"
                 }
             },
             {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "to_username",
-                    "foreignField": "username",
-                    "as": "to_user_info"
-                }
-            },
-            {
-                "$unwind": "$from_user_info"
-            },
-            {
-                "$unwind": "$to_user_info"
+                "$unwind": "$user_info"
             },
             {
                 "$sort": {"date_created": -1}
             }
         ]
         
-        async for doc in db.transfers.aggregate(pipeline):
-            transfer_data = {
+        contributions = []
+        async for doc in db.contributions.aggregate(pipeline):
+            contribution_data = {
                 "id": str(doc["_id"]),
-                "from_username": doc["from_username"],
-                "to_username": doc["to_username"],
+                "username": doc["username"],
+                "product_name": doc["product_name"],
                 "amount": doc["amount"],
                 "description": doc.get("description", ""),
                 "date_created": doc["date_created"],
-                "from_user_full_name": doc["from_user_info"]["full_name"],
-                "to_user_full_name": doc["to_user_info"]["full_name"],
-                "is_sender": doc["from_username"] == username,
-                "is_receiver": doc["to_username"] == username
+                "user_full_name": doc["user_info"]["full_name"]
             }
-            transfers.append(transfer_data)
+            contributions.append(contribution_data)
         
-        return transfers
-    
-    async def get_all_user_balances(self) -> List[dict]:
+        return contributions
+
+    async def get_monthly_summary(self, year: int, month: int) -> dict:
+        """Get monthly summary statistics"""
         db = await self.get_database()
-        user_balances = []
         
-        # Get all users
-        async for user_doc in db.users.find({"is_active": True}):
-            username = user_doc["username"]
-            balance = await self.get_user_balance(username)
-            
-            user_balances.append({
-                "username": username,
-                "full_name": user_doc["full_name"],
-                "balance": balance
+        from datetime import datetime
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        match_condition = {"date_created": {"$gte": start_date, "$lt": end_date}}
+        
+        # Total contributions and amount for the month
+        total_pipeline = [
+            {"$match": match_condition},
+            {
+                "$group": {
+                    "_id": None,
+                    "total_amount": {"$sum": "$amount"},
+                    "total_count": {"$sum": 1}
+                }
+            }
+        ]
+        
+        total_result = []
+        async for doc in db.contributions.aggregate(total_pipeline):
+            total_result.append(doc)
+        
+        total_amount = total_result[0]["total_amount"] if total_result else 0
+        total_count = total_result[0]["total_count"] if total_result else 0
+        
+        # Contributions by user for the month
+        user_pipeline = [
+            {"$match": match_condition},
+            {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "username",
+                    "foreignField": "username", 
+                    "as": "user_info"
+                }
+            },
+            {
+                "$unwind": "$user_info"
+            },
+            {
+                "$group": {
+                    "_id": "$username",
+                    "full_name": {"$first": "$user_info.full_name"},
+                    "total_amount": {"$sum": "$amount"},
+                    "count": {"$sum": 1}
+                }
+            },
+            {
+                "$sort": {"total_amount": -1}
+            }
+        ]
+        
+        user_contributions = []
+        async for doc in db.contributions.aggregate(user_pipeline):
+            user_contributions.append({
+                "username": doc["_id"],
+                "full_name": doc["full_name"],
+                "total_amount": doc["total_amount"],
+                "count": doc["count"]
             })
         
-        # Sort by balance descending
-        user_balances.sort(key=lambda x: x["balance"], reverse=True)
-        return user_balances
+        # Contributions by product for the month
+        product_pipeline = [
+            {"$match": match_condition},
+            {
+                "$group": {
+                    "_id": "$product_name",
+                    "total_amount": {"$sum": "$amount"},
+                    "count": {"$sum": 1}
+                }
+            },
+            {
+                "$sort": {"total_amount": -1}
+            }
+        ]
+        
+        product_contributions = []
+        async for doc in db.contributions.aggregate(product_pipeline):
+            product_contributions.append({
+                "product_name": doc["_id"],
+                "total_amount": doc["total_amount"],
+                "count": doc["count"]
+            })
+        
+        return {
+            "year": year,
+            "month": month,
+            "total_amount": total_amount,
+            "total_count": total_count,
+            "contributions_by_user": user_contributions,
+            "contributions_by_product": product_contributions
+        }

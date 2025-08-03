@@ -4,20 +4,20 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-list me-2"></i>All Contributions</h2>
+    <h2 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-star me-2"></i>All Contributions</h2>
     <a href="/dashboard" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+        <i class="fas fa-home me-2"></i>Back to Dashboard
     </a>
 </div>
 
 {% if contributions %}
 <div class="row mb-3">
     <div class="col-12">
-        <div class="card">
+        <div class="card sparkle">
             <div class="card-header">
                 <div class="row">
                     <div class="col-md-6">
-                        <h5><i class="fas fa-table me-2"></i>Contribution History</h5>
+                        <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-table me-2"></i>Contribution History</h5>
                     </div>
                     <div class="col-md-6 text-end">
                         <span class="badge bg-primary">Total: {{ contributions|length }} contributions</span>
@@ -29,8 +29,8 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead class="table-dark">
+                    <table class="table table-hover">
+                        <thead>
                             <tr>
                                 <th>Member</th>
                                 <th>Product</th>
@@ -52,9 +52,9 @@
                                 <td class="text-success">
                                     <strong>${{ "%.2f"|format(contribution.amount) }}</strong>
                                 </td>
-                                <td>{{ contribution.description or '-' }}</td>
+                                <td>{{ contribution.description or 'No description' }}</td>
                                 <td>
-                                    <small>{{ contribution.date_created.strftime('%Y-%m-%d') }}</small>
+                                    <small><strong>{{ contribution.date_created.strftime('%Y-%m-%d') }}</strong></small>
                                     <br><small class="text-muted">{{ contribution.date_created.strftime('%H:%M') }}</small>
                                 </td>
                             </tr>
@@ -68,11 +68,11 @@
 </div>
 {% else %}
 <div class="text-center py-5">
-    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
-    <h4 class="text-muted">No Contributions Yet</h4>
-    <p class="text-muted">Be the first to add a contribution!</p>
-    <a href="/dashboard" class="btn btn-primary">
-        <i class="fas fa-plus me-2"></i>Add First Contribution
+    <i class="fas fa-gift fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted" style="font-family: 'Fredoka One', cursive;">No Contributions Yet!</h4>
+    <p class="text-muted">Be the first to add an amazing contribution!</p>
+    <a href="/dashboard" class="btn btn-primary sparkle">
+        <i class="fas fa-rocket me-2"></i>Add First Contribution
     </a>
 </div>
 {% endif %}

@@ -145,10 +145,17 @@ async def dashboard_authenticated(request: Request):
         # Get user's contributions
         contributions = await db.get_user_contributions(user.username)
         
+        # Get current month's summary
+        from datetime import datetime
+        now = datetime.now()
+        current_month_summary = await db.get_monthly_summary(now.year, now.month)
+        
         return templates.TemplateResponse("dashboard.html", {
             "request": request, 
             "user": user,
-            "contributions": contributions
+            "contributions": contributions,
+            "current_month_summary": current_month_summary,
+            "current_month_name": now.strftime("%B")
         })
     except:
         return RedirectResponse(url="/login")
@@ -292,6 +299,54 @@ async def update_profile(
         await db.update_user_profile(user.username, full_name, email)
         
         return RedirectResponse(url="/profile?message=Profile updated successfully", status_code=303)
+    except:
+        return RedirectResponse(url="/login")
+
+@app.get("/monthly-contributions", response_class=HTMLResponse)
+async def monthly_contributions(request: Request, year: int = None, month: int = None):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        # Get current date if no year/month specified
+        if not year or not month:
+            from datetime import datetime
+            now = datetime.now()
+            year = year or now.year
+            month = month or now.month
+        
+        # Get monthly contributions and summary
+        contributions = await db.get_monthly_contributions(year, month)
+        monthly_summary = await db.get_monthly_summary(year, month)
+        
+        # Get available months (last 12 months)
+        available_months = []
+        from datetime import datetime, timedelta
+        current_date = datetime.now()
+        for i in range(12):
+            date = current_date - timedelta(days=30*i)
+            available_months.append({
+                "year": date.year,
+                "month": date.month,
+                "month_name": date.strftime("%B"),
+                "is_current": date.year == year and date.month == month
+            })
+        
+        return templates.TemplateResponse("monthly_contributions.html", {
+            "request": request,
+            "user": user,
+            "contributions": contributions,
+            "monthly_summary": monthly_summary,
+            "available_months": available_months,
+            "current_year": year,
+            "current_month": month,
+            "month_name": datetime(year, month, 1).strftime("%B")
+        })
     except:
         return RedirectResponse(url="/login")
 

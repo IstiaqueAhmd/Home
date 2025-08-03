@@ -4,39 +4,41 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-chart-bar me-2"></i>Analytics & Insights</h2>
+    <h2 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-magic me-2"></i>Analytics & Insights</h2>
     <a href="/dashboard" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+        <i class="fas fa-home me-2"></i>Back to Dashboard
     </a>
 </div>
 
 <!-- Overview Cards -->
 <div class="row mb-4">
     <div class="col-md-6">
-        <div class="card bg-primary text-white">
+        <div class="card bg-primary text-white sparkle">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Total Contributions</h6>
                         <h2>{{ analytics.total_contributions }}</h2>
+                        <small class="opacity-75">Amazing contributions!</small>
                     </div>
                     <div class="align-self-center">
-                        <i class="fas fa-list fa-3x opacity-75"></i>
+                        <i class="fas fa-trophy fa-3x opacity-75"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-6">
-        <div class="card bg-success text-white">
+        <div class="card bg-success text-white sparkle">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Total Amount</h6>
                         <h2>${{ "%.2f"|format(analytics.total_amount) }}</h2>
+                        <small class="opacity-75">Incredible value!</small>
                     </div>
                     <div class="align-self-center">
-                        <i class="fas fa-dollar-sign fa-3x opacity-75"></i>
+                        <i class="fas fa-coins fa-3x opacity-75"></i>
                     </div>
                 </div>
             </div>
@@ -47,9 +49,9 @@
 <!-- Contributions by User -->
 <div class="row mb-4">
     <div class="col-lg-6">
-        <div class="card">
+        <div class="card sparkle">
             <div class="card-header">
-                <h5><i class="fas fa-users me-2"></i>Contributions by Member</h5>
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-users me-2"></i>Contributions by Member</h5>
             </div>
             <div class="card-body">
                 {% if analytics.contributions_by_user %}
@@ -65,7 +67,7 @@
                             <br><small class="text-muted">{{ user_contrib.count }} contributions</small>
                         </div>
                     </div>
-                    <div class="progress mt-2" style="height: 8px;">
+                    <div class="progress mt-2" style="height: 12px;">
                         <div class="progress-bar" role="progressbar" 
                              style="width: {{ (user_contrib.total_amount / analytics.total_amount * 100)|round(1) }}%">
                         </div>
@@ -73,7 +75,10 @@
                 </div>
                 {% endfor %}
                 {% else %}
-                <p class="text-muted text-center">No contribution data available</p>
+                <div class="text-center py-4">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No contribution data available yet!</p>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -81,9 +86,9 @@
 
     <!-- Top Products -->
     <div class="col-lg-6">
-        <div class="card">
+        <div class="card sparkle">
             <div class="card-header">
-                <h5><i class="fas fa-shopping-cart me-2"></i>Top Products</h5>
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-shopping-cart me-2"></i>Top Products</h5>
             </div>
             <div class="card-body">
                 {% if analytics.contributions_by_product %}
@@ -98,7 +103,7 @@
                             <br><small class="text-muted">{{ product.count }} purchases</small>
                         </div>
                     </div>
-                    <div class="progress mt-2" style="height: 6px;">
+                    <div class="progress mt-2" style="height: 10px;">
                         <div class="progress-bar bg-info" role="progressbar" 
                              style="width: {{ (product.total_amount / analytics.contributions_by_product[0].total_amount * 100)|round(1) }}%">
                         </div>
@@ -106,7 +111,10 @@
                 </div>
                 {% endfor %}
                 {% else %}
-                <p class="text-muted text-center">No product data available</p>
+                <div class="text-center py-4">
+                    <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No product data available yet! Start shopping!</p>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -116,14 +124,14 @@
 <!-- Monthly Trends -->
 <div class="row">
     <div class="col-12">
-        <div class="card">
+        <div class="card sparkle">
             <div class="card-header">
-                <h5><i class="fas fa-calendar me-2"></i>Monthly Trends</h5>
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-calendar-alt me-2"></i>Monthly Trends</h5>
             </div>
             <div class="card-body">
                 {% if analytics.monthly_contributions %}
                 <div class="table-responsive">
-                    <table class="table table-striped">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Month</th>
@@ -135,7 +143,7 @@
                         <tbody>
                             {% for month in analytics.monthly_contributions %}
                             <tr>
-                                <td>{{ month.year }}-{{ "%02d"|format(month.month) }}</td>
+                                <td><strong>{{ month.year }}-{{ "%02d"|format(month.month) }}</strong></td>
                                 <td>
                                     <span class="badge bg-primary">{{ month.count }}</span>
                                 </td>
@@ -143,7 +151,7 @@
                                     <strong>${{ "%.2f"|format(month.total_amount) }}</strong>
                                 </td>
                                 <td>
-                                    ${{ "%.2f"|format(month.total_amount / month.count) }}
+                                    <span class="badge bg-info">${{ "%.2f"|format(month.total_amount / month.count) }}</span>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -151,7 +159,11 @@
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted text-center">No monthly data available</p>
+                <div class="text-center py-4">
+                    <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                    <h4 style="font-family: 'Fredoka One', cursive;">No monthly data yet!</h4>
+                    <p class="text-muted">Start contributing to see amazing trends!</p>
+                </div>
                 {% endif %}
             </div>
         </div>

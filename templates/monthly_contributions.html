@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Contributions - {{ month_name }} {{ current_year }} - House Finance Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-calendar-alt me-2"></i>Monthly Contributions - {{ month_name }} {{ current_year }}</h2>
+    <a href="/dashboard" class="btn btn-secondary">
+        <i class="fas fa-home me-2"></i>Back to Dashboard
+    </a>
+</div>
+
+<!-- Month Navigation -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card sparkle">
+            <div class="card-header">
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-calendar me-2"></i>Select Month</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for month_data in available_months %}
+                    <div class="col-md-2 col-sm-4 col-6 mb-2">
+                        <a href="/monthly-contributions?year={{ month_data.year }}&month={{ month_data.month }}" 
+                           class="btn btn-outline-primary w-100 {% if month_data.is_current %}active{% endif %}">
+                            {{ month_data.month_name }} {{ month_data.year }}
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Summary -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card sparkle text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-line fa-2x text-primary mb-2"></i>
+                <h5 style="font-family: 'Fredoka One', cursive;">Total Contributions</h5>
+                <h3 class="text-primary">{{ monthly_summary.total_count }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card sparkle text-center">
+            <div class="card-body">
+                <i class="fas fa-dollar-sign fa-2x text-success mb-2"></i>
+                <h5 style="font-family: 'Fredoka One', cursive;">Total Amount</h5>
+                <h3 class="text-success">${{ "%.2f"|format(monthly_summary.total_amount) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card sparkle text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-info mb-2"></i>
+                <h5 style="font-family: 'Fredoka One', cursive;">Contributors</h5>
+                <h3 class="text-info">{{ monthly_summary.contributions_by_user|length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card sparkle text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-cart fa-2x text-warning mb-2"></i>
+                <h5 style="font-family: 'Fredoka One', cursive;">Products</h5>
+                <h3 class="text-warning">{{ monthly_summary.contributions_by_product|length }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if monthly_summary.total_count > 0 %}
+<div class="row">
+    <!-- Monthly Contributions List -->
+    <div class="col-lg-8">
+        <div class="card sparkle">
+            <div class="card-header">
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-list me-2"></i>{{ month_name }} Contributions</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Product</th>
+                                <th>Amount</th>
+                                <th>Description</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for contribution in contributions %}
+                            <tr>
+                                <td>
+                                    <strong>{{ contribution.user_full_name }}</strong>
+                                    <br><small class="text-muted">@{{ contribution.username }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ contribution.product_name }}</span>
+                                </td>
+                                <td class="text-success">
+                                    <strong>${{ "%.2f"|format(contribution.amount) }}</strong>
+                                </td>
+                                <td>{{ contribution.description or 'No description' }}</td>
+                                <td>
+                                    <small><strong>{{ contribution.date_created.strftime('%m/%d') }}</strong></small>
+                                    <br><small class="text-muted">{{ contribution.date_created.strftime('%H:%M') }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Statistics -->
+    <div class="col-lg-4">
+        <!-- Top Contributors -->
+        {% if monthly_summary.contributions_by_user %}
+        <div class="card sparkle mb-3">
+            <div class="card-header">
+                <h6 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-trophy me-2"></i>Top Contributors</h6>
+            </div>
+            <div class="card-body">
+                {% for contributor in monthly_summary.contributions_by_user[:5] %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ contributor.full_name }}</strong>
+                        <br><small class="text-muted">{{ contributor.count }} contributions</small>
+                    </div>
+                    <span class="badge bg-success">${{ "%.2f"|format(contributor.total_amount) }}</span>
+                </div>
+                {% if not loop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Top Products -->
+        {% if monthly_summary.contributions_by_product %}
+        <div class="card sparkle">
+            <div class="card-header">
+                <h6 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-shopping-bag me-2"></i>Top Products</h6>
+            </div>
+            <div class="card-body">
+                {% for product in monthly_summary.contributions_by_product[:5] %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ product.product_name }}</strong>
+                        <br><small class="text-muted">{{ product.count }} purchases</small>
+                    </div>
+                    <span class="badge bg-primary">${{ "%.2f"|format(product.total_amount) }}</span>
+                </div>
+                {% if not loop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-calendar-times fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted" style="font-family: 'Fredoka One', cursive;">No Contributions in {{ month_name }} {{ current_year }}</h4>
+    <p class="text-muted">Start adding contributions to track your monthly progress!</p>
+    <a href="/dashboard" class="btn btn-primary sparkle">
+        <i class="fas fa-plus me-2"></i>Add First Contribution
+    </a>
+</div>
+{% endif %}
+{% endblock %}

@@ -5,9 +5,10 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6 col-lg-5">
-        <div class="card shadow">
-            <div class="card-header bg-success text-white text-center">
-                <h4><i class="fas fa-user-plus me-2"></i>Register</h4>
+        <div class="card shadow-lg sparkle">
+            <div class="card-header text-center">
+                <h4 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-rainbow me-2"></i>Join Our Family!</h4>
+                <p class="mb-0 text-white-50">Create your account to get started</p>
             </div>
             <div class="card-body">
                 <form method="post" action="/register">
@@ -15,15 +16,17 @@
                         <label for="username" class="form-label">Username</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-user"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" required>
+                            <input type="text" class="form-control" id="username" name="username" 
+                                   placeholder="Choose your username" required>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
+                        <label for="email" class="form-label">Email Address</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                            <input type="email" class="form-control" id="email" name="email" required>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="your.email@example.com" required>
                         </div>
                     </div>
                     
@@ -31,29 +34,36 @@
                         <label for="full_name" class="form-label">Full Name</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-id-card"></i></span>
-                            <input type="text" class="form-control" id="full_name" name="full_name" required>
+                            <input type="text" class="form-control" id="full_name" name="full_name" 
+                                   placeholder="Your full name" required>
                         </div>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label for="password" class="form-label">Password</label>
                         <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                            <span class="input-group-text"><i class="fas fa-key"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   placeholder="Create a secure password" required minlength="6">
                         </div>
-                        <small class="form-text text-muted">Password must be at least 6 characters long.</small>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-shield-alt me-1"></i>Password must be at least 6 characters long
+                        </small>
                     </div>
                     
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-user-plus me-2"></i>Register
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-rocket me-2"></i>Create Account
                         </button>
                     </div>
                 </form>
                 
-                <hr>
+                <hr class="my-4">
                 <div class="text-center">
-                    <p>Already have an account? <a href="/login">Login here</a></p>
+                    <p class="text-muted">Already part of our family?</p>
+                    <a href="/login" class="btn btn-outline-success">
+                        <i class="fas fa-heart me-2"></i>Sign In
+                    </a>
                 </div>
             </div>
         </div>

@@ -4,14 +4,14 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-user-circle me-2"></i>My Profile</h2>
+    <h2 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-user-astronaut me-2"></i>My Profile</h2>
     <a href="/dashboard" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+        <i class="fas fa-home me-2"></i>Back to Dashboard
     </a>
 </div>
 
 {% if request.query_params.get('message') %}
-<div class="alert alert-success alert-dismissible fade show" role="alert">
+<div class="alert alert-success alert-dismissible fade show sparkle" role="alert">
     {{ request.query_params.get('message') }}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
@@ -20,9 +20,9 @@
 <div class="row">
     <!-- Profile Information -->
     <div class="col-lg-8">
-        <div class="card">
+        <div class="card sparkle">
             <div class="card-header">
-                <h5><i class="fas fa-edit me-2"></i>Profile Information</h5>
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-edit me-2"></i>Profile Information</h5>
             </div>
             <div class="card-body">
                 <form method="post" action="/update-profile">
@@ -49,7 +49,7 @@
                     
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save me-2"></i>Update Profile
+                            <i class="fas fa-rocket me-2"></i>Update Profile
                         </button>
                     </div>
                 </form>
@@ -59,14 +59,14 @@
 
     <!-- Statistics -->
     <div class="col-lg-4">
-        <div class="card">
+        <div class="card sparkle">
             <div class="card-header">
-                <h5><i class="fas fa-chart-pie me-2"></i>My Statistics</h5>
+                <h5 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-chart-pie me-2"></i>My Statistics</h5>
             </div>
             <div class="card-body">
                 <div class="text-center mb-3">
                     <i class="fas fa-user-circle fa-4x text-primary mb-2"></i>
-                    <h5>{{ user.full_name }}</h5>
+                    <h5 style="font-family: 'Fredoka One', cursive;">{{ user.full_name }}</h5>
                     <p class="text-muted">@{{ user.username }}</p>
                 </div>
                 
@@ -99,9 +99,9 @@
 
         <!-- Recent Contributions -->
         {% if stats.recent_contributions %}
-        <div class="card mt-3">
+        <div class="card mt-3 sparkle">
             <div class="card-header">
-                <h6><i class="fas fa-history me-2"></i>Recent Contributions</h6>
+                <h6 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-clock me-2"></i>Recent Contributions</h6>
             </div>
             <div class="card-body">
                 {% for contribution in stats.recent_contributions %}
