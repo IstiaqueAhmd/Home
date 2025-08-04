@@ -1069,3 +1069,150 @@ class Database:
             return True
         except:
             return False
+
+    async def create_join_request(self, username: str, home_name: str) -> bool:
+        """Create a join request for a user to join a home"""
+        db = await self.get_database()
+        
+        try:
+            # Check if home exists
+            home = await db.homes.find_one({"name": home_name})
+            if not home:
+                return False
+            
+            # Check if user already has a pending request for this home
+            existing_request = await db.join_requests.find_one({
+                "username": username,
+                "home_id": str(home["_id"]),
+                "status": "pending"
+            })
+            if existing_request:
+                return False
+            
+            # Create join request
+            request_data = {
+                "username": username,
+                "home_id": str(home["_id"]),
+                "home_name": home_name,
+                "status": "pending",
+                "date_created": datetime.utcnow()
+            }
+            
+            await db.join_requests.insert_one(request_data)
+            return True
+        except:
+            return False
+    
+    async def get_pending_join_requests(self, home_id: str) -> List[dict]:
+        """Get all pending join requests for a home"""
+        db = await self.get_database()
+        
+        try:
+            requests = []
+            cursor = db.join_requests.find({
+                "home_id": home_id,
+                "status": "pending"
+            }).sort("date_created", -1)
+            
+            async for request in cursor:
+                # Get user details
+                user = await db.users.find_one({"username": request["username"]})
+                if user:
+                    request_data = {
+                        "id": str(request["_id"]),
+                        "username": request["username"],
+                        "full_name": user["full_name"],
+                        "email": user["email"],
+                        "date_created": request["date_created"]
+                    }
+                    requests.append(request_data)
+            
+            return requests
+        except:
+            return []
+    
+    async def get_user_pending_request(self, username: str) -> Optional[dict]:
+        """Get user's pending join request if any"""
+        db = await self.get_database()
+        
+        try:
+            request = await db.join_requests.find_one({
+                "username": username,
+                "status": "pending"
+            })
+            
+            if request:
+                return {
+                    "id": str(request["_id"]),
+                    "home_name": request["home_name"],
+                    "date_created": request["date_created"]
+                }
+            return None
+        except:
+            return None
+    
+    async def approve_join_request(self, request_id: str, leader_username: str) -> bool:
+        """Approve a join request"""
+        db = await self.get_database()
+        
+        try:
+            from bson import ObjectId
+            
+            # Get the join request
+            request = await db.join_requests.find_one({"_id": ObjectId(request_id)})
+            if not request or request["status"] != "pending":
+                return False
+            
+            # Verify that the current user is the leader of the home
+            home = await db.homes.find_one({"_id": ObjectId(request["home_id"])})
+            if not home or home["leader_username"] != leader_username:
+                return False
+            
+            # Add user to home
+            await db.users.update_one(
+                {"username": request["username"]},
+                {"$set": {"home_id": request["home_id"]}}
+            )
+            
+            # Add user to home members
+            await db.homes.update_one(
+                {"_id": ObjectId(request["home_id"])},
+                {"$addToSet": {"members": request["username"]}}
+            )
+            
+            # Update request status
+            await db.join_requests.update_one(
+                {"_id": ObjectId(request_id)},
+                {"$set": {"status": "approved", "date_processed": datetime.utcnow()}}
+            )
+            
+            return True
+        except:
+            return False
+    
+    async def reject_join_request(self, request_id: str, leader_username: str) -> bool:
+        """Reject a join request"""
+        db = await self.get_database()
+        
+        try:
+            from bson import ObjectId
+            
+            # Get the join request
+            request = await db.join_requests.find_one({"_id": ObjectId(request_id)})
+            if not request or request["status"] != "pending":
+                return False
+            
+            # Verify that the current user is the leader of the home
+            home = await db.homes.find_one({"_id": ObjectId(request["home_id"])})
+            if not home or home["leader_username"] != leader_username:
+                return False
+            
+            # Update request status
+            await db.join_requests.update_one(
+                {"_id": ObjectId(request_id)},
+                {"$set": {"status": "rejected", "date_processed": datetime.utcnow()}}
+            )
+            
+            return True
+        except:
+            return False

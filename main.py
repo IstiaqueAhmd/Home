@@ -225,13 +225,7 @@ async def all_contributions(request: Request):
         # Check if user belongs to a home
         user_home = await db.get_user_home(user.username)
         if not user_home:
-            return templates.TemplateResponse("all_contributions.html", {
-                "request": request,
-                "user": user,
-                "user_home": None,
-                "contributions": [],
-                "no_home_message": "Please create or join a home to view contributions from your household."
-            })
+            return RedirectResponse(url="/dashboard?error=Please create or join a home to view contributions from your household", status_code=303)
         
         # Get home contributions with user details
         home_contributions = await db.get_home_contributions_with_users(user_home.id)
@@ -243,7 +237,7 @@ async def all_contributions(request: Request):
             "contributions": home_contributions
         })
     except:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/dashboard?error=Please create or join a home to view contributions", status_code=303)
 
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics(request: Request):
@@ -268,13 +262,7 @@ async def analytics(request: Request):
         # Check if user belongs to a home
         user_home = await db.get_user_home(user.username)
         if not user_home:
-            return templates.TemplateResponse("analytics.html", {
-                "request": request,
-                "user": user,
-                "user_home": None,
-                "analytics": {},
-                "no_home_message": "Please create or join a home to view analytics for your household."
-            })
+            return RedirectResponse(url="/dashboard?error=Please create or join a home to view analytics for your household", status_code=303)
         
         # Get home-specific analytics data
         analytics_data = await db.get_home_analytics(user_home.id)
@@ -286,7 +274,7 @@ async def analytics(request: Request):
             "analytics": analytics_data
         })
     except:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/dashboard?error=Please create or join a home to view analytics", status_code=303)
 
 @app.post("/delete-contribution/{contribution_id}")
 async def delete_contribution(request: Request, contribution_id: str):
@@ -366,15 +354,7 @@ async def monthly_contributions(request: Request, year: int = None, month: int =
         # Check if user belongs to a home
         user_home = await db.get_user_home(user.username)
         if not user_home:
-            return templates.TemplateResponse("monthly_contributions.html", {
-                "request": request,
-                "user": user,
-                "user_home": None,
-                "contributions": [],
-                "monthly_summary": {},
-                "available_months": [],
-                "no_home_message": "Please create or join a home to view monthly contributions for your household."
-            })
+            return RedirectResponse(url="/dashboard?error=Please create or join a home to view monthly contributions for your household", status_code=303)
         
         # Get current date if no year/month specified
         if not year or not month:
@@ -412,7 +392,7 @@ async def monthly_contributions(request: Request, year: int = None, month: int =
             "month_name": datetime(year, month, 1).strftime("%B")
         })
     except:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/dashboard?error=Please create or join a home to view monthly contributions", status_code=303)
 
 @app.get("/transfers", response_class=HTMLResponse)
 async def transfers_page(request: Request):
@@ -515,14 +495,25 @@ async def home_management(request: Request):
         
         # Get home members if user belongs to a home
         home_members = []
+        pending_requests = []
+        user_pending_request = None
+        
         if user_home:
             home_members = await db.get_home_members(user_home.id)
+            # Get pending join requests if user is leader
+            if user_home.leader_username == user.username:
+                pending_requests = await db.get_pending_join_requests(user_home.id)
+        else:
+            # Check if user has a pending join request
+            user_pending_request = await db.get_user_pending_request(user.username)
         
         return templates.TemplateResponse("home_management.html", {
             "request": request,
             "user": user,
             "user_home": user_home,
             "home_members": home_members,
+            "pending_requests": pending_requests,
+            "user_pending_request": user_pending_request,
             "is_leader": user_home and user_home.leader_username == user.username
         })
     except:
@@ -623,6 +614,64 @@ async def leave_home(request: Request):
     except:
         return RedirectResponse(url="/login")
 
+@app.post("/request-join-home")
+async def request_join_home(
+    request: Request,
+    home_name: str = Form(...)
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        # Check if user is already in a home
+        if user.home_id:
+            return RedirectResponse(url="/home?error=You are already in a home", status_code=303)
+        
+        # Create join request
+        success = await db.create_join_request(user.username, home_name)
+        if success:
+            return RedirectResponse(url="/home?message=Join request sent successfully. Wait for leader approval.", status_code=303)
+        else:
+            return RedirectResponse(url="/home?error=Failed to send join request. Check if home exists or if you already have a pending request.", status_code=303)
+    except Exception as e:
+        return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
+
+@app.post("/approve-join-request")
+async def approve_join_request(
+    request: Request,
+    request_id: str = Form(...),
+    action: str = Form(...)  # "approve" or "reject"
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        if action == "approve":
+            success = await db.approve_join_request(request_id, user.username)
+            message = "Join request approved successfully" if success else "Failed to approve join request"
+        elif action == "reject":
+            success = await db.reject_join_request(request_id, user.username)
+            message = "Join request rejected successfully" if success else "Failed to reject join request"
+        else:
+            return RedirectResponse(url="/home?error=Invalid action", status_code=303)
+        
+        if success:
+            return RedirectResponse(url=f"/home?message={message}", status_code=303)
+        else:
+            return RedirectResponse(url=f"/home?error={message}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8080)

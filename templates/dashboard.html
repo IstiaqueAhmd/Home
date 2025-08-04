@@ -117,21 +117,47 @@
         </div>
     </div>
 
+    <!-- Quick Actions - Add Contribution -->
+    {% if user_home %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 bg-primary bg-gradient">
+                <div class="card-body text-center py-4">
+                    <h5 class="text-white mb-3">
+                        <i class="fas fa-plus me-2"></i>Quick Action
+                    </h5>
+                    <p class="text-white-50 mb-4">Add a new contribution to track your expenses</p>
+                    <button type="button" class="btn btn-light btn-lg px-4" data-bs-toggle="modal" data-bs-target="#addContributionModal">
+                        <i class="fas fa-plus me-2"></i>Add Contribution
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if not user_home %}
     <!-- No Home Call to Action - Enhanced Responsive -->
     <div class="row mb-4">
         <div class="col-12">
-        <div class="card border-primary">
-            <div class="card-body text-center py-5">
-                <div class="mb-4">
-                    <i class="fas fa-home fa-4x text-primary mb-3 d-block"></i>
-                    <h3 class="h4 mb-3">Create or Join a Home</h3>
-                    <p class="text-muted mb-4 col-lg-8 mx-auto">
-                        Start tracking expenses with your family or roommates! Use the navigation menu to access Home Management and create a new home or ask someone to add you to their existing home.
-                    </p>
+            <a href="/home" class="text-decoration-none">
+                <div class="card border-primary clickable-card">
+                    <div class="card-body text-center py-5">
+                        <div class="mb-4">
+                            <i class="fas fa-home fa-4x text-primary mb-3 d-block"></i>
+                            <h3 class="h4 mb-3 text-dark">Create or Join a Home</h3>
+                            <p class="text-muted mb-4 col-lg-8 mx-auto">
+                                Start tracking expenses with your family or roommates! Click here to access Home Management and create a new home or ask someone to add you to their existing home.
+                            </p>
+                            <div class="mt-3">
+                                <span class="btn btn-primary">
+                                    <i class="fas fa-arrow-right me-2"></i>Go to Home Management
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            </div>
+            </a>
         </div>
     </div>
     {% endif %}

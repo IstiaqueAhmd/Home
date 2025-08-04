@@ -3,47 +3,18 @@
 {% block title %}Transfers - House Finance Tracker{% endblock %}
 
 {% block content %}
-<div class="container-lg">
-    <!-- Header Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="text-center text-md-start">
-                <h1 class="h2 mb-1">
-                    <i class="fas fa-exchange-alt me-2 text-primary"></i>Fund Transfers
-                </h1>
-                <p class="text-muted mb-0">Send and receive money between house members</p>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Balance Display -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card stats-card info border-0">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="mb-1">
-                                <i class="fas fa-wallet me-2"></i>Your Current Balance
-                            </h5>
-                            <h2 class="mb-0 fw-bold">${{ "%.2f"|format(balance) }}</h2>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-coins fa-3x opacity-75"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-lg py-4">
     
     <!-- Alert Messages -->
     {% if request.query_params.get('message') %}
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="fas fa-check-circle me-2"></i>{{ request.query_params.get('message') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="col-12 col-md-8 mx-auto">
+            <div class="alert alert-success border-0 shadow-sm" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-check-circle me-3 fa-lg"></i>
+                    <div class="flex-grow-1">{{ request.query_params.get('message') }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             </div>
         </div>
     </div>
@@ -51,10 +22,13 @@
     
     {% if request.query_params.get('error') %}
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i>{{ request.query_params.get('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="col-12 col-md-8 mx-auto">
+            <div class="alert alert-danger border-0 shadow-sm" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle me-3 fa-lg"></i>
+                    <div class="flex-grow-1">{{ request.query_params.get('error') }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             </div>
         </div>
     </div>
@@ -62,18 +36,18 @@
     
     <!-- Transfer Form -->
     <div class="row mb-5">
-        <div class="col-12 col-lg-8 mx-auto">
-            <div class="card border-0">
-                <div class="card-header bg-primary text-white border-0">
-                    <h5 class="mb-0">
-                        <i class="fas fa-paper-plane me-2"></i>Send Money
-                    </h5>
+        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+            <div class="card border-0 shadow">
+                <div class="card-header bg-white border-0 text-center py-4">
+                    <h4 class="mb-0 fw-semibold">
+                        <i class="fas fa-paper-plane me-2 text-primary"></i>Send Money
+                    </h4>
                 </div>
                 <div class="card-body p-4">
-                    <form method="post" action="/transfer">
+                    <form method="post" action="/transfer" class="needs-validation" novalidate>
                         <div class="mb-4">
-                            <label for="recipient_username" class="form-label fw-semibold">
-                                <i class="fas fa-user me-2 text-primary"></i>Recipient
+                            <label for="recipient_username" class="form-label fw-semibold mb-3">
+                                Choose Recipient
                             </label>
                             <select class="form-select form-select-lg" id="recipient_username" name="recipient_username" required>
                                 <option value="">Select a house member...</option>
@@ -86,33 +60,32 @@
                         </div>
                         
                         <div class="mb-4">
-                            <label for="amount" class="form-label fw-semibold">
-                                <i class="fas fa-dollar-sign me-2 text-success"></i>Amount
+                            <label for="amount" class="form-label fw-semibold mb-3">
+                                Amount to Send
                             </label>
                             <div class="input-group input-group-lg">
-                                <span class="input-group-text bg-light">
+                                <span class="input-group-text bg-light border-end-0">
                                     <i class="fas fa-dollar-sign text-success"></i>
                                 </span>
-                                <input type="number" class="form-control" id="amount" name="amount" 
+                                <input type="number" class="form-control border-start-0" id="amount" name="amount" 
                                        step="0.01" min="0.01" max="{{ balance }}" required 
                                        placeholder="0.00">
                             </div>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>Maximum available: ${{ "%.2f"|format(balance) }}
-                            </div>
+                            <small class="form-text text-muted mt-2">
+                                Maximum available: ${{ "%.2f"|format(balance) }}
+                            </small>
                         </div>
                         
                         <div class="mb-4">
-                            <label for="description" class="form-label fw-semibold">
-                                <i class="fas fa-edit me-2 text-info"></i>Description 
-                                <span class="text-muted fw-normal">(Optional)</span>
+                            <label for="description" class="form-label fw-semibold mb-3">
+                                Description <span class="text-muted fw-normal">(Optional)</span>
                             </label>
                             <textarea class="form-control" id="description" name="description" rows="3" 
-                                      placeholder="Add a note about this transfer..."></textarea>
+                                      placeholder="What's this transfer for?"></textarea>
                         </div>
                         
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary btn-lg">
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg py-3">
                                 <i class="fas fa-paper-plane me-2"></i>Send Transfer
                             </button>
                         </div>
@@ -123,38 +96,47 @@
     </div>
     
     <!-- Transfer History -->
-    <div class="row g-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center mb-4">
+                <h3 class="fw-semibold">Transfer History</h3>
+                <p class="text-muted">Your recent transfer activity</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4 mb-5">
         <!-- Sent Transfers -->
         <div class="col-12 col-lg-6">
-            <div class="card border-0">
-                <div class="card-header bg-transparent border-0 pb-0">
-                    <h5 class="mb-0">
-                        <i class="fas fa-arrow-up me-2 text-danger"></i>Sent Transfers
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 text-center">
+                        <i class="fas fa-arrow-up me-2 text-danger"></i>Money Sent
                     </h5>
                 </div>
-                <div class="card-body pt-3">
+                <div class="card-body p-0">
                     {% if transfers.sent %}
-                    <div class="list-group list-group-flush">
-                        {% for transfer in transfers.sent %}
-                        <div class="list-group-item bg-transparent border-start border-danger border-3 px-0 py-3">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1 fw-semibold">To: {{ transfer.recipient_full_name }}</h6>
-                                    <p class="mb-1 text-muted small">{{ transfer.description or "No description" }}</p>
-                                </div>
-                                <span class="badge bg-danger rounded-pill fs-6">-${{ "%.2f"|format(transfer.amount) }}</span>
+                    {% for transfer in transfers.sent %}
+                    <div class="border-bottom p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 fw-semibold">{{ transfer.recipient_full_name }}</h6>
+                                <p class="mb-2 text-muted">{{ transfer.description or "No description provided" }}</p>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>{{ transfer.date_created.strftime('%b %d, %Y at %I:%M %p') }}
+                                </small>
                             </div>
-                            <small class="text-muted">
-                                <i class="fas fa-clock me-1"></i>{{ transfer.date_created.strftime('%m/%d/%Y at %I:%M %p') }}
-                            </small>
+                            <div class="text-end">
+                                <span class="badge bg-danger-subtle text-danger fs-6 px-3 py-2">-${{ "%.2f"|format(transfer.amount) }}</span>
+                            </div>
                         </div>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
                     {% else %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-paper-plane fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">No transfers sent yet</h6>
-                        <p class="text-muted small">Your sent transfers will appear here</p>
+                    <div class="text-center py-5">
+                        <i class="fas fa-paper-plane fa-3x text-muted mb-3 opacity-50"></i>
+                        <h6 class="text-muted mb-2">No transfers sent</h6>
+                        <p class="text-muted small mb-0">Your sent transfers will appear here</p>
                     </div>
                     {% endif %}
                 </div>
@@ -163,35 +145,35 @@
         
         <!-- Received Transfers -->
         <div class="col-12 col-lg-6">
-            <div class="card border-0">
-                <div class="card-header bg-transparent border-0 pb-0">
-                    <h5 class="mb-0">
-                        <i class="fas fa-arrow-down me-2 text-success"></i>Received Transfers
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 text-center">
+                        <i class="fas fa-arrow-down me-2 text-success"></i>Money Received
                     </h5>
                 </div>
-                <div class="card-body pt-3">
+                <div class="card-body p-0">
                     {% if transfers.received %}
-                    <div class="list-group list-group-flush">
-                        {% for transfer in transfers.received %}
-                        <div class="list-group-item bg-transparent border-start border-success border-3 px-0 py-3">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1 fw-semibold">From: {{ transfer.sender_full_name }}</h6>
-                                    <p class="mb-1 text-muted small">{{ transfer.description or "No description" }}</p>
-                                </div>
-                                <span class="badge bg-success rounded-pill fs-6">+${{ "%.2f"|format(transfer.amount) }}</span>
+                    {% for transfer in transfers.received %}
+                    <div class="border-bottom p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 fw-semibold">{{ transfer.sender_full_name }}</h6>
+                                <p class="mb-2 text-muted">{{ transfer.description or "No description provided" }}</p>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>{{ transfer.date_created.strftime('%b %d, %Y at %I:%M %p') }}
+                                </small>
                             </div>
-                            <small class="text-muted">
-                                <i class="fas fa-clock me-1"></i>{{ transfer.date_created.strftime('%m/%d/%Y at %I:%M %p') }}
-                            </small>
+                            <div class="text-end">
+                                <span class="badge bg-success-subtle text-success fs-6 px-3 py-2">+${{ "%.2f"|format(transfer.amount) }}</span>
+                            </div>
                         </div>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
                     {% else %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-gift fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">No transfers received yet</h6>
-                        <p class="text-muted small">Your received transfers will appear here</p>
+                    <div class="text-center py-5">
+                        <i class="fas fa-gift fa-3x text-muted mb-3 opacity-50"></i>
+                        <h6 class="text-muted mb-2">No transfers received</h6>
+                        <p class="text-muted small mb-0">Your received transfers will appear here</p>
                     </div>
                     {% endif %}
                 </div>
