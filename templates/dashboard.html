@@ -6,12 +6,28 @@
 {% if user %}
 <div class="row">
     <div class="col-12">
+        {% if request.query_params.get('message') %}
+        <div class="alert alert-success" role="alert">
+            <i class="fas fa-check-circle me-2"></i>{{ request.query_params.get('message') }}
+        </div>
+        {% endif %}
+        
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>{{ request.query_params.get('error') }}
+        </div>
+        {% endif %}
+        
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 style="font-family: 'Fredoka One', cursive;"><i class="fas fa-rocket me-2 text-success"></i>Welcome, {{ user.full_name }}!</h2>
             <div>
+                {% if user_home %}
                 <button class="btn btn-primary me-2 sparkle" data-bs-toggle="modal" data-bs-target="#addContributionModal">
                     <i class="fas fa-plus-circle me-2"></i>Add Contribution
                 </button>
+                {% else %}
+                <span class="badge bg-warning text-dark me-2">No Home</span>
+                {% endif %}
                 <a href="/transfers" class="btn btn-warning me-2">
                     <i class="fas fa-exchange-alt me-2"></i>Transfer Funds
                 </a>
@@ -87,12 +103,22 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
+                        {% if user_home and current_month_name %}
                         <h6 class="card-title mb-1">{{ current_month_name }} Total</h6>
-                        <h2 class="mb-0 fw-bold">${{ "%.2f"|format(current_month_summary.total_amount) }}</h2>
-                        <small class="opacity-75">{{ current_month_summary.total_count }} contributions this month</small>
+                        <h2 class="mb-0 fw-bold">${{ "%.2f"|format(current_month_summary.total_amount or 0) }}</h2>
+                        <small class="opacity-75">{{ current_month_summary.total_count or 0 }} contributions this month</small>
+                        {% else %}
+                        <h6 class="card-title mb-1">Home Status</h6>
+                        <h2 class="mb-0 fw-bold">No Home</h2>
+                        <small class="opacity-75">Create or join a home</small>
+                        {% endif %}
                     </div>
                     <div class="align-self-center">
+                        {% if user_home %}
                         <i class="fas fa-calendar-alt fa-3x opacity-75"></i>
+                        {% else %}
+                        <i class="fas fa-home fa-3x opacity-75"></i>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -100,8 +126,28 @@
     </div>
 </div>
 
+{% if not user_home %}
+<!-- No Home Call to Action -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-primary sparkle">
+            <div class="card-body text-center">
+                <i class="fas fa-home fa-4x text-primary mb-3"></i>
+                <h4 style="font-family: 'Fredoka One', cursive;">Create or Join a Home</h4>
+                <p class="text-muted mb-4">
+                    Start tracking expenses with your family or roommates! Create a new home or ask someone to add you to their existing home.
+                </p>
+                <a href="/home" class="btn btn-primary btn-lg sparkle">
+                    <i class="fas fa-plus-circle me-2"></i>Get Started
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Current Month Summary -->
-{% if current_month_summary.total_count > 0 %}
+{% if user_home and current_month_summary and current_month_summary.total_count > 0 %}
 <div class="row mb-4">
     <div class="col-12">
         <div class="card sparkle">
@@ -200,6 +246,7 @@
 </div>
 
 <!-- Add Contribution Modal -->
+{% if user_home %}
 <div class="modal fade" id="addContributionModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -242,6 +289,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 {% else %}
 <!-- Not logged in -->
