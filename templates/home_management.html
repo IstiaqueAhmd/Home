@@ -3,50 +3,91 @@
 {% block title %}Home Management - House Finance Tracker{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <h2 class="mb-4 sparkle">
-            <i class="fas fa-home me-2"></i>Home Management
-        </h2>
-        
-        {% if request.query_params.get('message') %}
-        <div class="alert alert-success" role="alert">
-            <i class="fas fa-check-circle me-2"></i>{{ request.query_params.get('message') }}
-        </div>
-        {% endif %}
-        
-        {% if request.query_params.get('error') %}
-        <div class="alert alert-danger" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>{{ request.query_params.get('error') }}
-        </div>
-        {% endif %}
-        
-        {% if not user_home %}
-        <!-- Create Home Section -->
-        <div class="card shadow-lg sparkle mb-4">
-            <div class="card-header">
-                <h5><i class="fas fa-plus-circle me-2"></i>Create a New Home</h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted">You are not currently part of any home. Create a new home to start tracking expenses with your family or roommates.</p>
-                <form method="post" action="/create-home">
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Home Name</label>
-                        <input type="text" class="form-control" id="name" name="name" 
-                               placeholder="Enter home name (e.g., Smith Family, Apartment 3B)" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description (Optional)</label>
-                        <textarea class="form-control" id="description" name="description" rows="3" 
-                                  placeholder="Brief description of your home"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-home me-2"></i>Create Home
-                    </button>
-                </form>
+<div class="container-lg">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+                <div>
+                    <h1 class="h2 mb-1" style="font-family: 'Fredoka One', cursive;">
+                        <i class="fas fa-home me-2 text-primary"></i>Home Management
+                    </h1>
+                    <p class="text-muted mb-0">Manage your home settings and members</p>
+                </div>
+                <a href="/dashboard" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    <span class="d-none d-sm-inline">Back to Dashboard</span>
+                    <span class="d-sm-none">Back</span>
+                </a>
             </div>
         </div>
-        {% else %}
+    </div>
+    
+    <!-- Alert Messages -->
+    {% if request.query_params.get('message') %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>{{ request.query_params.get('message') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if request.query_params.get('error') %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>{{ request.query_params.get('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if not user_home %}
+    <!-- Create Home Section -->
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-lg sparkle border-0">
+                <div class="card-header bg-primary text-white border-0">
+                    <h5 class="mb-0" style="font-family: 'Fredoka One', cursive;">
+                        <i class="fas fa-plus-circle me-2"></i>Create a New Home
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-home fa-3x text-primary mb-3"></i>
+                        <p class="text-muted">You are not currently part of any home. Create a new home to start tracking expenses with your family or roommates.</p>
+                    </div>
+                    <form method="post" action="/create-home">
+                        <div class="mb-4">
+                            <label for="name" class="form-label fw-semibold">
+                                <i class="fas fa-home me-2 text-primary"></i>Home Name
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="name" name="name" 
+                                   placeholder="Enter home name (e.g., Smith Family, Apartment 3B)" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="description" class="form-label fw-semibold">
+                                <i class="fas fa-edit me-2 text-info"></i>Description 
+                                <span class="text-muted fw-normal">(Optional)</span>
+                            </label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Brief description of your home"></textarea>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg sparkle">
+                                <i class="fas fa-rocket me-2"></i>Create Home
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
         <!-- Current Home Information -->
         <div class="card shadow-lg sparkle mb-4">
             <div class="card-header">
