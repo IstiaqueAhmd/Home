@@ -1,3 +1,192 @@
+/* Enhanced Responsive Utilities */
+
+/* Mobile-first responsive text */
+@media (max-width: 576px) {
+    .display-1 { font-size: 2.5rem; }
+    .display-2 { font-size: 2rem; }
+    .display-3 { font-size: 1.75rem; }
+    .display-4 { font-size: 1.5rem; }
+    
+    /* Compact cards on mobile */
+    .card-body {
+        padding: 1rem !important;
+    }
+    
+    /* Smaller buttons on mobile */
+    .btn-lg {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+    }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 991px) {
+    .container-fluid {
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+}
+
+/* Enhanced card hover effects */
+.card {
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+}
+
+/* Responsive navigation improvements */
+.navbar-nav .nav-link {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    margin: 0.125rem;
+    transition: all 0.2s ease;
+}
+
+.navbar-nav .nav-link:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+/* Better dropdown styling */
+.dropdown-menu {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    padding: 0.5rem 0;
+}
+
+.dropdown-item {
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(0,0,0,0.05);
+    padding-left: 1.25rem;
+}
+
+/* Enhanced table responsiveness */
+@media (max-width: 768px) {
+    .table-responsive table {
+        font-size: 0.875rem;
+    }
+    
+    .table td, .table th {
+        padding: 0.5rem 0.25rem;
+    }
+}
+
+/* Badge improvements */
+.badge {
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+/* Form enhancements */
+.form-control:focus {
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 0.2rem rgba(0, 208, 132, 0.25);
+}
+
+.input-group-text {
+    border-color: #dee2e6;
+    background-color: #f8f9fa;
+}
+
+/* Modal improvements */
+.modal-content {
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 1.5rem;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem 1.5rem;
+}
+
+/* Alert enhancements */
+.alert {
+    border: none;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Responsive spacing utilities */
+@media (max-width: 576px) {
+    .py-5 { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+    .py-4 { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+    .mb-5 { margin-bottom: 2rem !important; }
+    .mb-4 { margin-bottom: 1.5rem !important; }
+}
+
+/* Enhanced button styles */
+.btn {
+    border-radius: 0.5rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-group .btn:hover {
+    transform: none;
+}
+
+/* Sparkle animation enhancement */
+@keyframes sparkle {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    25% { transform: scale(1.05) rotate(1deg); }
+    50% { transform: scale(1) rotate(-1deg); }
+    75% { transform: scale(1.02) rotate(1deg); }
+}
+
+.sparkle:hover {
+    animation: sparkle 0.6s ease-in-out;
+}
+
+/* List group enhancements */
+.list-group-item {
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.list-group-item:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+/* Enhanced shadows */
+.shadow-sm {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+}
+
+.shadow {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+}
+
+/* Navbar brand enhancement */
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.5rem;
+    transition: all 0.2s ease;
+}
+
+.navbar-brand:hover {
+    transform: scale(1.05);
+}
+
 /* Creative Cartoonish Theme for House Finance Tracker */
 @import url('https://fonts.googleapis.com/css2?family=Fredoka+One:wght@400&family=Nunito:wght@400;600;700;800&display=swap');
 
