@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
 import os
+import logging
 from dotenv import load_dotenv
 
 from database import Database
@@ -16,6 +17,10 @@ from auth import AuthManager
 # Load environment variables
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Initialize database and auth
 db = Database()
 auth_manager = AuthManager()
@@ -23,10 +28,19 @@ auth_manager = AuthManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
-    await db.connect_to_mongo()
-    yield
-    # Shutdown
-    await db.close_mongo_connection()
+    try:
+        logger.info("Starting up application...")
+        await db.connect_to_mongo()
+        logger.info("Database connection established")
+        yield
+    except Exception as e:
+        logger.error(f"Startup error: {str(e)}")
+        raise e
+    finally:
+        # Shutdown
+        logger.info("Shutting down application...")
+        await db.close_mongo_connection()
+        logger.info("Database connection closed")
 
 app = FastAPI(
     title="House Finance Tracker", 
@@ -64,6 +78,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for deployment"""
+    try:
+        # Test database connection
+        db_test = await db.get_database()
+        await db_test.users.count_documents({}, limit=1)
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e), "database": "disconnected"}
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
@@ -79,23 +104,35 @@ async def register(
     full_name: str = Form(...),
     password: str = Form(...)
 ):
-    # Check if user already exists
-    if await db.get_user(username):
-        raise HTTPException(status_code=400, detail="Username already registered")
-    
-    if await db.get_user_by_email(email):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create new user
-    user_create = UserCreate(
-        username=username,
-        email=email,
-        full_name=full_name,
-        password=password
-    )
-    
-    user = await db.create_user(user_create)
-    return RedirectResponse(url="/login?message=Registration successful", status_code=303)
+    try:
+        logger.info(f"Registration attempt for username: {username}, email: {email}")
+        
+        # Check if user already exists
+        existing_user = await db.get_user(username)
+        if existing_user:
+            logger.warning(f"Registration failed: Username {username} already exists")
+            return RedirectResponse(url="/register?error=Username already registered", status_code=303)
+        
+        existing_email = await db.get_user_by_email(email)
+        if existing_email:
+            logger.warning(f"Registration failed: Email {email} already exists")
+            return RedirectResponse(url="/register?error=Email already registered", status_code=303)
+        
+        # Create new user
+        user_create = UserCreate(
+            username=username,
+            email=email,
+            full_name=full_name,
+            password=password
+        )
+        
+        user = await db.create_user(user_create)
+        logger.info(f"User {username} registered successfully")
+        return RedirectResponse(url="/login?message=Registration successful", status_code=303)
+    except Exception as e:
+        # Log the error for debugging
+        logger.error(f"Registration error for {username}: {str(e)}")
+        return RedirectResponse(url="/register?error=Registration failed. Please try again.", status_code=303)
 
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -672,7 +709,8 @@ async def approve_join_request(
     except Exception as e:
         return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
 
-"""if __name__ == "__main__":
+if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8080)
-"""
+
+

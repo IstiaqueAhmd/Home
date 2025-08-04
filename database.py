@@ -18,17 +18,28 @@ class Database:
         self.auth_manager = AuthManager()
         
     async def connect_to_mongo(self):
-        self.client = AsyncIOMotorClient(self.mongodb_url)
-        self.database = self.client[self.database_name]
+        try:
+            self.client = AsyncIOMotorClient(self.mongodb_url)
+            self.database = self.client[self.database_name]
+            # Test the connection
+            await self.client.admin.command('ping')
+            print("MongoDB connection successful")
+        except Exception as e:
+            print(f"MongoDB connection failed: {str(e)}")
+            raise e
         
     async def close_mongo_connection(self):
         if self.client:
             self.client.close()
     
     async def get_database(self):
-        if self.database is None:
-            await self.connect_to_mongo()
-        return self.database
+        try:
+            if self.database is None:
+                await self.connect_to_mongo()
+            return self.database
+        except Exception as e:
+            print(f"Database access error: {str(e)}")
+            raise e
     
     async def create_user(self, user: UserCreate) -> UserInDB:
         db = await self.get_database()
