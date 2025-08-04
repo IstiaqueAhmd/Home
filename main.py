@@ -107,6 +107,11 @@ async def register(
     try:
         logger.info(f"Registration attempt for username: {username}, email: {email}")
         
+        # Validate input
+        if not username or not email or not full_name or not password:
+            logger.warning("Registration failed: Missing required fields")
+            return RedirectResponse(url="/register?error=All fields are required", status_code=303)
+        
         # Check if user already exists
         existing_user = await db.get_user(username)
         if existing_user:
@@ -129,9 +134,12 @@ async def register(
         user = await db.create_user(user_create)
         logger.info(f"User {username} registered successfully")
         return RedirectResponse(url="/login?message=Registration successful", status_code=303)
+    except ValueError as ve:
+        logger.error(f"Registration validation error for {username}: {str(ve)}")
+        return RedirectResponse(url="/register?error=Registration failed. Please try again.", status_code=303)
     except Exception as e:
         # Log the error for debugging
-        logger.error(f"Registration error for {username}: {str(e)}")
+        logger.error(f"Registration error for {username}: {str(e)}", exc_info=True)
         return RedirectResponse(url="/register?error=Registration failed. Please try again.", status_code=303)
 
 @app.post("/token", response_model=Token)
@@ -154,18 +162,31 @@ async def login(
     username: str = Form(...),
     password: str = Form(...)
 ):
-    user = await db.authenticate_user(username, password)
-    if not user:
-        return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
-    
-    access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30)))
-    access_token = auth_manager.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    
-    response = RedirectResponse(url="/dashboard", status_code=303)
-    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
-    return response
+    try:
+        logger.info(f"Login attempt for username: {username}")
+        
+        # Validate input
+        if not username or not password:
+            logger.warning("Login failed: Missing username or password")
+            return RedirectResponse(url="/login?error=Username and password are required", status_code=303)
+        
+        user = await db.authenticate_user(username, password)
+        if not user:
+            logger.warning(f"Login failed for username: {username}")
+            return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
+        
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30)))
+        access_token = auth_manager.create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+        
+        response = RedirectResponse(url="/dashboard", status_code=303)
+        response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+        logger.info(f"Login successful for username: {username}")
+        return response
+    except Exception as e:
+        logger.error(f"Login error for {username}: {str(e)}", exc_info=True)
+        return RedirectResponse(url="/login?error=Login failed. Please try again.", status_code=303)
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_authenticated(request: Request):
@@ -709,8 +730,8 @@ async def approve_join_request(
     except Exception as e:
         return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
 
-"""if __name__ == "__main__":
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8080)
-"""
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
 

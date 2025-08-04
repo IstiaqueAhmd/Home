@@ -9,7 +9,9 @@ load_dotenv()
 
 class AuthManager:
     def __init__(self):
-        self.secret_key = os.getenv("SECRET_KEY", "fallback-secret-key")
+        self.secret_key = os.getenv("SECRET_KEY")
+        if not self.secret_key or self.secret_key == "fallback-secret-key":
+            raise ValueError("SECRET_KEY environment variable is required and must be changed from default")
         self.algorithm = os.getenv("ALGORITHM", "HS256")
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     

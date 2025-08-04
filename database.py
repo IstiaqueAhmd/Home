@@ -11,7 +11,9 @@ load_dotenv()
 
 class Database:
     def __init__(self):
-        self.mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+        self.mongodb_url = os.getenv("MONGODB_URL")
+        if not self.mongodb_url:
+            raise ValueError("MONGODB_URL environment variable is required")
         self.database_name = os.getenv("DATABASE_NAME", "house_finance_tracker")
         self.client = None
         self.database = None
@@ -19,7 +21,9 @@ class Database:
         
     async def connect_to_mongo(self):
         try:
-            self.client = AsyncIOMotorClient(self.mongodb_url)
+            if self.client:
+                self.client.close()
+            self.client = AsyncIOMotorClient(self.mongodb_url, serverSelectionTimeoutMS=5000)
             self.database = self.client[self.database_name]
             # Test the connection
             await self.client.admin.command('ping')
@@ -34,12 +38,19 @@ class Database:
     
     async def get_database(self):
         try:
-            if self.database is None:
+            if self.client is None or self.database is None:
                 await self.connect_to_mongo()
+            # Test the connection
+            await self.client.admin.command('ping')
             return self.database
         except Exception as e:
-            print(f"Database access error: {str(e)}")
-            raise e
+            print(f"Database connection failed, attempting reconnect: {str(e)}")
+            try:
+                await self.connect_to_mongo()
+                return self.database
+            except Exception as reconnect_error:
+                print(f"Database reconnect failed: {str(reconnect_error)}")
+                raise reconnect_error
     
     async def create_user(self, user: UserCreate) -> UserInDB:
         db = await self.get_database()
