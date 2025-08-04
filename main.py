@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 
 from database import Database
-from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate
+from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
 from auth import AuthManager
 
 # Load environment variables
@@ -119,7 +119,7 @@ async def login(
 ):
     user = await db.authenticate_user(username, password)
     if not user:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+        return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
     
     access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30)))
     access_token = auth_manager.create_access_token(
@@ -142,24 +142,30 @@ async def dashboard_authenticated(request: Request):
             token = token[7:]
         user = await get_current_user(token)
         
+        # Get user's home (optional)
+        user_home = await db.get_user_home(user.username)
+        
         # Get user's contributions
         contributions = await db.get_user_contributions(user.username)
         
         # Get user's current balance
         user_balance = await db.get_user_balance(user.username)
         
-        # Get current month's summary
-        from datetime import datetime
-        now = datetime.now()
-        current_month_summary = await db.get_monthly_summary(now.year, now.month)
+        # Get current month's summary (home-specific if user has home, otherwise empty)
+        current_month_summary = {}
+        if user_home:
+            from datetime import datetime
+            now = datetime.now()
+            current_month_summary = await db.get_home_monthly_summary(user_home.id, now.year, now.month)
         
         return templates.TemplateResponse("dashboard.html", {
             "request": request, 
             "user": user,
+            "user_home": user_home,
             "contributions": contributions,
             "user_balance": user_balance,
             "current_month_summary": current_month_summary,
-            "current_month_name": now.strftime("%B")
+            "current_month_name": datetime.now().strftime("%B") if user_home else None
         })
     except:
         return RedirectResponse(url="/login")
@@ -187,6 +193,11 @@ async def add_contribution(
             token = token[7:]
         user = await get_current_user(token)
         
+        # Check if user belongs to a home
+        user_home = await db.get_user_home(user.username)
+        if not user_home:
+            return RedirectResponse(url="/dashboard?error=Please create or join a home to add contributions", status_code=303)
+        
         contribution_data = {
             "product_name": product_name,
             "amount": amount,
@@ -195,6 +206,8 @@ async def add_contribution(
         
         await db.create_contribution(user.username, contribution_data)
         return RedirectResponse(url="/dashboard", status_code=303)
+    except ValueError as e:
+        return RedirectResponse(url=f"/dashboard?error={str(e)}", status_code=303)
     except:
         return RedirectResponse(url="/login")
 
@@ -209,13 +222,25 @@ async def all_contributions(request: Request):
             token = token[7:]
         user = await get_current_user(token)
         
-        # Get all contributions with user details
-        all_contributions = await db.get_all_contributions_with_users()
+        # Check if user belongs to a home
+        user_home = await db.get_user_home(user.username)
+        if not user_home:
+            return templates.TemplateResponse("all_contributions.html", {
+                "request": request,
+                "user": user,
+                "user_home": None,
+                "contributions": [],
+                "no_home_message": "Please create or join a home to view contributions from your household."
+            })
+        
+        # Get home contributions with user details
+        home_contributions = await db.get_home_contributions_with_users(user_home.id)
         
         return templates.TemplateResponse("all_contributions.html", {
             "request": request,
             "user": user,
-            "contributions": all_contributions
+            "user_home": user_home,
+            "contributions": home_contributions
         })
     except:
         return RedirectResponse(url="/login")
@@ -231,12 +256,24 @@ async def analytics(request: Request):
             token = token[7:]
         user = await get_current_user(token)
         
-        # Get analytics data
-        analytics_data = await db.get_analytics()
+        # Check if user belongs to a home
+        user_home = await db.get_user_home(user.username)
+        if not user_home:
+            return templates.TemplateResponse("analytics.html", {
+                "request": request,
+                "user": user,
+                "user_home": None,
+                "analytics": {},
+                "no_home_message": "Please create or join a home to view analytics for your household."
+            })
+        
+        # Get home-specific analytics data
+        analytics_data = await db.get_home_analytics(user_home.id)
         
         return templates.TemplateResponse("analytics.html", {
             "request": request,
             "user": user,
+            "user_home": user_home,
             "analytics": analytics_data
         })
     except:
@@ -317,6 +354,19 @@ async def monthly_contributions(request: Request, year: int = None, month: int =
             token = token[7:]
         user = await get_current_user(token)
         
+        # Check if user belongs to a home
+        user_home = await db.get_user_home(user.username)
+        if not user_home:
+            return templates.TemplateResponse("monthly_contributions.html", {
+                "request": request,
+                "user": user,
+                "user_home": None,
+                "contributions": [],
+                "monthly_summary": {},
+                "available_months": [],
+                "no_home_message": "Please create or join a home to view monthly contributions for your household."
+            })
+        
         # Get current date if no year/month specified
         if not year or not month:
             from datetime import datetime
@@ -324,9 +374,9 @@ async def monthly_contributions(request: Request, year: int = None, month: int =
             year = year or now.year
             month = month or now.month
         
-        # Get monthly contributions and summary
-        contributions = await db.get_monthly_contributions(year, month)
-        monthly_summary = await db.get_monthly_summary(year, month)
+        # Get monthly contributions and summary for the home
+        contributions = await db.get_home_monthly_contributions(user_home.id, year, month)
+        monthly_summary = await db.get_home_monthly_summary(user_home.id, year, month)
         
         # Get available months (last 12 months)
         available_months = []
@@ -344,6 +394,7 @@ async def monthly_contributions(request: Request, year: int = None, month: int =
         return templates.TemplateResponse("monthly_contributions.html", {
             "request": request,
             "user": user,
+            "user_home": user_home,
             "contributions": contributions,
             "monthly_summary": monthly_summary,
             "available_months": available_months,
@@ -365,20 +416,33 @@ async def transfers_page(request: Request):
             token = token[7:]
         user = await get_current_user(token)
         
+        # Check if user belongs to a home
+        user_home = await db.get_user_home(user.username)
+        if not user_home:
+            return templates.TemplateResponse("transfers.html", {
+                "request": request,
+                "user": user,
+                "user_home": None,
+                "transfers": {"sent": [], "received": []},
+                "balance": 0,
+                "available_users": [],
+                "no_home_message": "Please create or join a home to transfer money with your household members."
+            })
+        
         # Get user's transfers
         transfers = await db.get_user_transfers(user.username)
         
         # Get user's current balance
         balance = await db.get_user_balance(user.username)
         
-        # Get all users for transfer form
-        all_users = await db.get_all_users()
-        # Remove current user from the list
-        available_users = [u for u in all_users if u.username != user.username]
+        # Get home members for transfer form (excluding current user)
+        home_members = await db.get_home_members(user_home.id)
+        available_users = [u for u in home_members if u.username != user.username]
         
         return templates.TemplateResponse("transfers.html", {
             "request": request,
             "user": user,
+            "user_home": user_home,
             "transfers": transfers,
             "balance": balance,
             "available_users": available_users
@@ -402,6 +466,11 @@ async def create_transfer(
             token = token[7:]
         user = await get_current_user(token)
         
+        # Check if user belongs to a home
+        user_home = await db.get_user_home(user.username)
+        if not user_home:
+            return RedirectResponse(url="/transfers?error=Please create or join a home to transfer money", status_code=303)
+        
         # Validate amount
         if amount <= 0:
             return RedirectResponse(url="/transfers?error=Invalid amount", status_code=303)
@@ -418,6 +487,130 @@ async def create_transfer(
         except ValueError as e:
             return RedirectResponse(url=f"/transfers?error={str(e)}", status_code=303)
         
+    except:
+        return RedirectResponse(url="/login")
+
+@app.get("/home", response_class=HTMLResponse)
+async def home_management(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        # Get user's home
+        user_home = await db.get_user_home(user.username)
+        
+        # Get home members if user belongs to a home
+        home_members = []
+        if user_home:
+            home_members = await db.get_home_members(user_home.id)
+        
+        return templates.TemplateResponse("home_management.html", {
+            "request": request,
+            "user": user,
+            "user_home": user_home,
+            "home_members": home_members,
+            "is_leader": user_home and user_home.leader_username == user.username
+        })
+    except:
+        return RedirectResponse(url="/login")
+
+@app.post("/create-home")
+async def create_home(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form("")
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        # Check if user is already in a home
+        if user.home_id:
+            return RedirectResponse(url="/home?error=You are already in a home", status_code=303)
+        
+        home_data = HomeCreate(name=name, description=description)
+        await db.create_home(home_data, user.username)
+        
+        return RedirectResponse(url="/home?message=Home created successfully", status_code=303)
+    except Exception as e:
+        return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
+
+@app.post("/add-member")
+async def add_member_to_home(
+    request: Request,
+    username: str = Form(...)
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        if not user.home_id:
+            return RedirectResponse(url="/home?error=You must be in a home to add members", status_code=303)
+        
+        success = await db.add_member_to_home(user.home_id, username, user.username)
+        if success:
+            return RedirectResponse(url="/home?message=Member added successfully", status_code=303)
+        else:
+            return RedirectResponse(url="/home?error=Failed to add member. Check if user exists and is not already in a home.", status_code=303)
+    except:
+        return RedirectResponse(url="/login")
+
+@app.post("/remove-member")
+async def remove_member_from_home(
+    request: Request,
+    username: str = Form(...)
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        if not user.home_id:
+            return RedirectResponse(url="/home?error=You must be in a home to remove members", status_code=303)
+        
+        success = await db.remove_member_from_home(user.home_id, username, user.username)
+        if success:
+            return RedirectResponse(url="/home?message=Member removed successfully", status_code=303)
+        else:
+            return RedirectResponse(url="/home?error=Failed to remove member. Only leaders can remove members.", status_code=303)
+    except:
+        return RedirectResponse(url="/login")
+
+@app.post("/leave-home")
+async def leave_home(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        user = await get_current_user(token)
+        
+        success = await db.leave_home(user.username)
+        if success:
+            return RedirectResponse(url="/home?message=Left home successfully", status_code=303)
+        else:
+            return RedirectResponse(url="/home?error=Cannot leave home. Leaders cannot leave unless they are the only member.", status_code=303)
     except:
         return RedirectResponse(url="/login")
 
