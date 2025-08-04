@@ -254,7 +254,16 @@ async def analytics(request: Request):
     try:
         if token.startswith("Bearer "):
             token = token[7:]
-        user = await get_current_user(token)
+        
+        # Verify token and get user directly
+        payload = auth_manager.verify_token(token)
+        username = payload.get("sub")
+        if username is None:
+            return RedirectResponse(url="/login")
+        
+        user = await db.get_user(username)
+        if user is None:
+            return RedirectResponse(url="/login")
         
         # Check if user belongs to a home
         user_home = await db.get_user_home(user.username)

@@ -7,18 +7,11 @@
     <!-- Header Section -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
-                <div>
-                    <h1 class="h2 mb-1" style="font-family: 'Fredoka One', cursive;">
-                        <i class="fas fa-exchange-alt me-2 text-warning"></i>Fund Transfers
-                    </h1>
-                    <p class="text-muted mb-0">Send and receive money between house members</p>
-                </div>
-                <a href="/dashboard" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>
-                    <span class="d-none d-sm-inline">Back to Dashboard</span>
-                    <span class="d-sm-none">Back</span>
-                </a>
+            <div class="text-center text-md-start">
+                <h1 class="h2 mb-1">
+                    <i class="fas fa-exchange-alt me-2 text-primary"></i>Fund Transfers
+                </h1>
+                <p class="text-muted mb-0">Send and receive money between house members</p>
             </div>
         </div>
     </div>
@@ -26,11 +19,11 @@
     <!-- Balance Display -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card bg-info text-white sparkle border-0 shadow">
+            <div class="card stats-card info border-0">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="mb-1" style="font-family: 'Fredoka One', cursive;">
+                            <h5 class="mb-1">
                                 <i class="fas fa-wallet me-2"></i>Your Current Balance
                             </h5>
                             <h2 class="mb-0 fw-bold">${{ "%.2f"|format(balance) }}</h2>
@@ -70,9 +63,9 @@
     <!-- Transfer Form -->
     <div class="row mb-5">
         <div class="col-12 col-lg-8 mx-auto">
-            <div class="card sparkle shadow-sm border-0">
+            <div class="card border-0">
                 <div class="card-header bg-primary text-white border-0">
-                    <h5 class="mb-0" style="font-family: 'Fredoka One', cursive;">
+                    <h5 class="mb-0">
                         <i class="fas fa-paper-plane me-2"></i>Send Money
                     </h5>
                 </div>
@@ -119,8 +112,8 @@
                         </div>
                         
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary btn-lg sparkle">
-                                <i class="fas fa-rocket me-2"></i>Send Transfer
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-paper-plane me-2"></i>Send Transfer
                             </button>
                         </div>
                     </form>
@@ -133,9 +126,9 @@
     <div class="row g-4">
         <!-- Sent Transfers -->
         <div class="col-12 col-lg-6">
-            <div class="card sparkle shadow-sm border-0">
+            <div class="card border-0">
                 <div class="card-header bg-transparent border-0 pb-0">
-                    <h5 class="mb-0" style="font-family: 'Fredoka One', cursive;">
+                    <h5 class="mb-0">
                         <i class="fas fa-arrow-up me-2 text-danger"></i>Sent Transfers
                     </h5>
                 </div>
@@ -170,9 +163,9 @@
         
         <!-- Received Transfers -->
         <div class="col-12 col-lg-6">
-            <div class="card sparkle shadow-sm border-0">
+            <div class="card border-0">
                 <div class="card-header bg-transparent border-0 pb-0">
-                    <h5 class="mb-0" style="font-family: 'Fredoka One', cursive;">
+                    <h5 class="mb-0">
                         <i class="fas fa-arrow-down me-2 text-success"></i>Received Transfers
                     </h5>
                 </div>

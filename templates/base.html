@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}House Finance Tracker{% endblock %}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One:wght@400&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="/static/css/style.css" rel="stylesheet">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-light">
         <div class="container">
-            <a class="navbar-brand sparkle fw-bold" href="/">
+            <a class="navbar-brand" href="/">
                 <i class="fas fa-home me-2"></i>
                 <span class="d-none d-sm-inline">House Finance Tracker</span>
                 <span class="d-sm-none">HFT</span>
@@ -26,22 +26,24 @@
                 {% if user %}
                 <div class="navbar-nav ms-auto">
                     <a class="nav-link" href="/dashboard">
-                        <i class="fas fa-rocket me-1"></i>
-                        <span class="d-lg-inline d-none">Dashboard</span>
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                     </a>
+                    {% if user_home %}
+                    <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#addContributionModal">
+                        <i class="fas fa-plus me-2"></i>Add Contribution
+                    </a>
+                    {% endif %}
                     <a class="nav-link" href="/transfers">
-                        <i class="fas fa-exchange-alt me-1"></i>
-                        <span class="d-lg-inline d-none">Transfers</span>
+                        <i class="fas fa-exchange-alt me-2"></i>Transfers
                     </a>
-                    <a class="nav-link d-lg-none" href="/all-contributions">
-                        <i class="fas fa-star me-1"></i>All Contributions
+                    <a class="nav-link" href="/all-contributions">
+                        <i class="fas fa-list me-2"></i>All Contributions
                     </a>
-                    <a class="nav-link d-lg-none" href="/monthly-contributions">
-                        <i class="fas fa-calendar-alt me-1"></i>Monthly
+                    <a class="nav-link" href="/monthly-contributions">
+                        <i class="fas fa-calendar-alt me-2"></i>Monthly View
                     </a>
                     <a class="nav-link" href="/analytics">
-                        <i class="fas fa-magic me-1"></i>
-                        <span class="d-lg-inline d-none">Analytics</span>
+                        <i class="fas fa-chart-line me-2"></i>Analytics
                     </a>
                     
                     <!-- User Dropdown -->
@@ -51,7 +53,7 @@
                             <span class="d-none d-md-inline">{{ user.full_name }}</span>
                             <span class="d-md-none">Account</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <li>
                                 <h6 class="dropdown-header">
                                     <i class="fas fa-user me-2"></i>{{ user.full_name }}
@@ -59,7 +61,7 @@
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/profile">
-                                <i class="fas fa-user-astronaut me-2"></i>Profile
+                                <i class="fas fa-user me-2"></i>Profile
                             </a></li>
                             <li><a class="dropdown-item" href="/home">
                                 <i class="fas fa-home me-2"></i>Home Management
@@ -68,7 +70,7 @@
                             <li>
                                 <form action="/logout" method="post" class="d-inline">
                                     <button type="submit" class="dropdown-item text-danger">
-                                        <i class="fas fa-door-open me-2"></i>Logout
+                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
                                     </button>
                                 </form>
                             </li>
