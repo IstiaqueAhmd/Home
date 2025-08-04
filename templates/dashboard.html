@@ -117,6 +117,25 @@
         </div>
     </div>
 
+    <!-- Quick Actions - Add Contribution -->
+    {% if user_home %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 bg-primary bg-gradient">
+                <div class="card-body text-center py-4">
+                    <h5 class="text-white mb-3">
+                        <i class="fas fa-plus me-2"></i>Quick Action
+                    </h5>
+                    <p class="text-white-50 mb-4">Add a new contribution to track your expenses</p>
+                    <button type="button" class="btn btn-light btn-lg px-4" data-bs-toggle="modal" data-bs-target="#addContributionModal">
+                        <i class="fas fa-plus me-2"></i>Add Contribution
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if not user_home %}
     <!-- No Home Call to Action - Enhanced Responsive -->
     <div class="row mb-4">
