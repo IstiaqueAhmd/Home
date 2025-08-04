@@ -40,10 +40,11 @@
     {% endif %}
     
     {% if not user_home %}
-    <!-- Create Home Section -->
+    <!-- No Home Options -->
     <div class="row justify-content-center">
-        <div class="col-12 col-lg-8">
-            <div class="card border-0">
+        <!-- Create Home Section -->
+        <div class="col-12 col-lg-6 mb-4">
+            <div class="card border-0 h-100">
                 <div class="card-header bg-primary text-white border-0">
                     <h5 class="mb-0">
                         <i class="fas fa-plus-circle me-2"></i>Create a New Home
@@ -52,7 +53,7 @@
                 <div class="card-body p-4">
                     <div class="text-center mb-4">
                         <i class="fas fa-home fa-3x text-primary mb-3"></i>
-                        <p class="text-muted">You are not currently part of any home. Create a new home to start tracking expenses with your family or roommates.</p>
+                        <p class="text-muted">Create a new home to start tracking expenses with your family or roommates.</p>
                     </div>
                     <form method="post" action="/create-home">
                         <div class="mb-4">
@@ -76,6 +77,49 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join Home Section -->
+        <div class="col-12 col-lg-6 mb-4">
+            <div class="card border-0 h-100">
+                <div class="card-header bg-success text-white border-0">
+                    <h5 class="mb-0">
+                        <i class="fas fa-sign-in-alt me-2"></i>Join an Existing Home
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-users fa-3x text-success mb-3"></i>
+                        <p class="text-muted">Request to join an existing home. The home leader will need to approve your request.</p>
+                    </div>
+                    
+                    {% if user_pending_request %}
+                    <!-- Pending Request Status -->
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-clock me-2"></i>Request Pending</h6>
+                        <p class="mb-2">You have a pending request to join <strong>{{ user_pending_request.home_name }}</strong></p>
+                        <small class="text-muted">Sent on {{ user_pending_request.date_created.strftime("%B %d, %Y at %I:%M %p") }}</small>
+                    </div>
+                    {% else %}
+                    <!-- Join Request Form -->
+                    <form method="post" action="/request-join-home">
+                        <div class="mb-4">
+                            <label for="home_name" class="form-label fw-semibold">
+                                <i class="fas fa-home me-2 text-success"></i>Home Name
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="home_name" name="home_name" 
+                                   placeholder="Enter the exact home name" required>
+                            <div class="form-text">Ask the home leader for the exact home name.</div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-paper-plane me-2"></i>Send Join Request
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -159,6 +203,47 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Pending Join Requests (Leader Only) -->
+        {% if is_leader and pending_requests %}
+        <div class="card border-0 mb-4">
+            <div class="card-header bg-warning text-dark border-0">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>Pending Join Requests ({{ pending_requests|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for request in pending_requests %}
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                    <div>
+                        <h6 class="mb-1">{{ request.full_name }}</h6>
+                        <small class="text-muted">
+                            @{{ request.username }} • {{ request.email }}<br>
+                            Requested on {{ request.date_created.strftime("%B %d, %Y at %I:%M %p") }}
+                        </small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="/approve-join-request" class="d-inline">
+                            <input type="hidden" name="request_id" value="{{ request.id }}">
+                            <input type="hidden" name="action" value="approve">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="fas fa-check me-1"></i>Approve
+                            </button>
+                        </form>
+                        <form method="post" action="/approve-join-request" class="d-inline">
+                            <input type="hidden" name="request_id" value="{{ request.id }}">
+                            <input type="hidden" name="action" value="reject">
+                            <button type="submit" class="btn btn-danger btn-sm"
+                                    onclick="return confirm('Reject join request from {{ request.full_name }}?')">
+                                <i class="fas fa-times me-1"></i>Reject
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         {% endif %}
     </div>
 </div>
