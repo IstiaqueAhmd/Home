@@ -13,3 +13,4 @@ pip-delete-this-directory.txt
 README.md
 run.bat
 setup.py
+.env.example

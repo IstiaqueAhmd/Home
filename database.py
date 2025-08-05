@@ -1,7 +1,6 @@
 import os
-import ssl
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError, ConnectionFailure
+from pymongo.errors import DuplicateKeyError
 from typing import Optional, List
 from models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
 from auth import AuthManager
@@ -20,69 +19,21 @@ class Database:
         
     async def connect_to_mongo(self):
         try:
-            # Configure SSL settings for MongoDB Atlas
-            ssl_settings = {}
-            if "mongodb+srv://" in self.mongodb_url or "mongodb.net" in self.mongodb_url:
-                ssl_settings = {
-                    "tls": True,
-                    "tlsAllowInvalidCertificates": False,
-                    "tlsAllowInvalidHostnames": False,
-                    "serverSelectionTimeoutMS": 30000,
-                    "connectTimeoutMS": 30000,
-                    "socketTimeoutMS": 30000,
-                    "maxPoolSize": 10,
-                    "retryWrites": True,
-                    "w": "majority"
-                }
-                
-                # Try to create SSL context with proper certificate verification
-                try:
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.check_hostname = True
-                    ssl_context.verify_mode = ssl.CERT_REQUIRED
-                    ssl_settings["ssl_context"] = ssl_context
-                except Exception as ssl_error:
-                    print(f"SSL context creation warning: {ssl_error}")
-                    # Continue without custom SSL context
-            
-            self.client = AsyncIOMotorClient(self.mongodb_url, **ssl_settings)
+            self.client = AsyncIOMotorClient(
+                self.mongodb_url,
+                serverSelectionTimeoutMS=5000,  # 5 second timeout
+                connectTimeoutMS=5000,
+                socketTimeoutMS=5000,
+                maxPoolSize=1,  # Limit connections for serverless
+                retryWrites=True
+            )
             self.database = self.client[self.database_name]
-            
-            # Test the connection with timeout
+            # Test the connection
             await self.client.admin.command('ping')
             print("MongoDB connection successful")
-            
-        except ServerSelectionTimeoutError as e:
-            print(f"MongoDB connection timeout: {str(e)}")
-            print("Please check your internet connection and MongoDB Atlas configuration")
-            raise e
-        except ConnectionFailure as e:
-            print(f"MongoDB connection failure: {str(e)}")
-            print("Please verify your MongoDB connection string and credentials")
-            raise e
         except Exception as e:
             print(f"MongoDB connection failed: {str(e)}")
-            # Try with relaxed SSL settings as fallback
-            if "ssl" in str(e).lower() or "tls" in str(e).lower():
-                print("Attempting connection with relaxed SSL settings...")
-                try:
-                    fallback_settings = {
-                        "tls": True,
-                        "tlsAllowInvalidCertificates": True,
-                        "tlsAllowInvalidHostnames": True,
-                        "serverSelectionTimeoutMS": 30000,
-                        "connectTimeoutMS": 30000,
-                        "socketTimeoutMS": 30000
-                    }
-                    self.client = AsyncIOMotorClient(self.mongodb_url, **fallback_settings)
-                    self.database = self.client[self.database_name]
-                    await self.client.admin.command('ping')
-                    print("MongoDB connection successful with relaxed SSL settings")
-                except Exception as fallback_error:
-                    print(f"Fallback connection also failed: {fallback_error}")
-                    raise e
-            else:
-                raise e
+            raise e
         
     async def close_mongo_connection(self):
         if self.client:
