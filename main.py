@@ -763,7 +763,7 @@ async def approve_join_request(
     except Exception as e:
         return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run(app, host="127.0.0.1", port=8000)
 
