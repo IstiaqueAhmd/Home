@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if db is not None:
         try:
             logger.info("Starting up application...")
-            await db.connect_to_mongo()
+            await db.connect_to_db()
             logger.info("Database connection established")
         except Exception as e:
             logger.error(f"Startup error: {str(e)}")
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if db is not None:
             try:
                 logger.info("Shutting down application...")
-                await db.close_mongo_connection()
+                await db.close_db_connection()
                 logger.info("Database connection closed")
             except Exception as e:
                 logger.error(f"Shutdown error: {str(e)}")
@@ -126,8 +126,10 @@ async def health_check():
     
     try:
         # Test database connection
-        db_test = await db.get_database()
-        await db_test.users.count_documents({}, limit=1)
+        async with await db.get_session() as session:
+            # Simple test query to check if database is accessible
+            from sqlalchemy import text
+            await session.execute(text("SELECT 1"))
         health_status["database"] = "connected"
     except Exception as e:
         health_status["database"] = "disconnected"
@@ -763,7 +765,7 @@ async def approve_join_request(
     except Exception as e:
         return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="127.0.0.1", port=8000)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 
