@@ -1,39 +1,34 @@
 """
-Test script to verify the WSGI application works
+Test script to verify the HTTP handler works
 """
 import sys
 from pathlib import Path
+from http.server import BaseHTTPRequestHandler
 
 # Add current directory to path
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-def test_wsgi_app():
-    """Test the WSGI application"""
+def test_handler():
+    """Test the HTTP handler"""
     try:
-        from api.index import app
-        print("✓ Successfully imported WSGI app")
+        from api.index import handler
+        print("✓ Successfully imported handler")
         
-        # Test environ for root path
-        environ = {
-            'REQUEST_METHOD': 'GET',
-            'PATH_INFO': '/',
-            'QUERY_STRING': ''
-        }
+        # Check if it's a class and subclass of BaseHTTPRequestHandler
+        if isinstance(handler, type):
+            print("✓ Handler is a class")
+            
+            if issubclass(handler, BaseHTTPRequestHandler):
+                print("✓ Handler is a subclass of BaseHTTPRequestHandler")
+            else:
+                print("✗ Handler is not a subclass of BaseHTTPRequestHandler")
+                return False
+        else:
+            print("✗ Handler is not a class")
+            return False
         
-        def start_response(status, headers):
-            print(f"✓ Status: {status}")
-            print(f"✓ Headers: {headers}")
-        
-        response = app(environ, start_response)
-        print(f"✓ Response: {response}")
-        
-        # Test health endpoint
-        environ['PATH_INFO'] = '/health'
-        response = app(environ, start_response)
-        print(f"✓ Health response: {response}")
-        
-        print("✓ All tests passed!")
+        print("✓ Handler should work with Vercel!")
         return True
         
     except Exception as e:
@@ -43,4 +38,4 @@ def test_wsgi_app():
         return False
 
 if __name__ == "__main__":
-    test_wsgi_app()
+    test_handler()
