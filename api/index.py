@@ -1,49 +1,49 @@
+"""
+Vercel-compatible entry point
+"""
 import sys
 import os
 from pathlib import Path
 
-# Add the parent directory to the path so we can import our modules
+# Add the parent directory to the path
 current_dir = Path(__file__).parent
 parent_dir = current_dir.parent
 sys.path.insert(0, str(parent_dir))
 
 try:
-    # Try to import the main FastAPI app
-    from main import app
-    print("Successfully imported main app")
+    # Import the simple WSGI app
+    from api.wsgi_app import application
+    print("Successfully imported WSGI application")
+    
+    # Export for Vercel
+    app = application
+    handler = application
     
 except ImportError as e:
-    print(f"Failed to import main app: {e}")
-    try:
-        # Try serverless fallback
-        from serverless import app
-        print("Using serverless fallback app")
-    except ImportError as e2:
-        print(f"Failed to import serverless app: {e2}")
-        # Create minimal fallback
-        from fastapi import FastAPI
-        from fastapi.responses import JSONResponse
-        from datetime import datetime
+    print(f"Failed to import WSGI app: {e}")
+    
+    # Ultimate fallback - pure function
+    import json
+    from datetime import datetime
+    
+    def fallback_app(environ, start_response):
+        """Ultimate fallback WSGI application"""
+        response_data = {
+            "message": "House Finance Tracker - Fallback Mode",
+            "error": f"Import failed: {e}",
+            "status": "fallback",
+            "timestamp": datetime.now().isoformat()
+        }
         
-        app = FastAPI(title="Fallback App")
+        response_body = json.dumps(response_data).encode('utf-8')
+        status = '200 OK'
+        headers = [
+            ('Content-Type', 'application/json'),
+            ('Content-Length', str(len(response_body)))
+        ]
         
-        @app.get("/")
-        async def root():
-            return JSONResponse({
-                "message": "Fallback application", 
-                "error": f"Main app failed: {e}",
-                "status": "fallback",
-                "timestamp": datetime.now().isoformat()
-            })
-        
-        @app.get("/health")
-        async def health():
-            return JSONResponse({
-                "status": "unhealthy", 
-                "message": "Running on fallback application",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            })
-
-# Export for Vercel
-handler = app
+        start_response(status, headers)
+        return [response_body]
+    
+    app = fallback_app
+    handler = fallback_app
