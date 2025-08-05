@@ -19,7 +19,14 @@ class Database:
         
     async def connect_to_mongo(self):
         try:
-            self.client = AsyncIOMotorClient(self.mongodb_url)
+            self.client = AsyncIOMotorClient(
+                self.mongodb_url,
+                serverSelectionTimeoutMS=5000,  # 5 second timeout
+                connectTimeoutMS=5000,
+                socketTimeoutMS=5000,
+                maxPoolSize=1,  # Limit connections for serverless
+                retryWrites=True
+            )
             self.database = self.client[self.database_name]
             # Test the connection
             await self.client.admin.command('ping')

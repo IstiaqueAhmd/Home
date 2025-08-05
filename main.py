@@ -141,7 +141,7 @@ async def register(
         return RedirectResponse(url="/login?message=Registration successful", status_code=303)
     except Exception as e:
         # Log the error for debugging
-        logger.error(f"Registration error for {username}: {str(e)}")
+        logger.error(f"Registration error for {username}: {str(e)}", exc_info=True)
         return RedirectResponse(url="/register?error=Registration failed. Please try again.", status_code=303)
 
 @app.post("/token", response_model=Token)
@@ -164,18 +164,25 @@ async def login(
     username: str = Form(...),
     password: str = Form(...)
 ):
-    user = await db.authenticate_user(username, password)
-    if not user:
-        return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
-    
-    access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30)))
-    access_token = auth_manager.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    
-    response = RedirectResponse(url="/dashboard", status_code=303)
-    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
-    return response
+    try:
+        logger.info(f"Login attempt for username: {username}")
+        user = await db.authenticate_user(username, password)
+        if not user:
+            logger.warning(f"Login failed for username: {username}")
+            return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
+        
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30)))
+        access_token = auth_manager.create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+        
+        response = RedirectResponse(url="/dashboard", status_code=303)
+        response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+        logger.info(f"Login successful for username: {username}")
+        return response
+    except Exception as e:
+        logger.error(f"Login error for {username}: {str(e)}", exc_info=True)
+        return RedirectResponse(url="/login?error=Login failed. Please try again.", status_code=303)
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_authenticated(request: Request):
@@ -722,5 +729,8 @@ async def approve_join_request(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+# For Vercel deployment
+app = app
 
 
