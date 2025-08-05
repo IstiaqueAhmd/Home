@@ -19,13 +19,22 @@ class Database:
         
     async def connect_to_mongo(self):
         try:
+            # SSL/TLS configuration for production
+            ssl_options = {
+                "ssl": True,
+                "ssl_cert_reqs": "CERT_NONE",  # Don't verify SSL certificates
+                "tlsAllowInvalidCertificates": True,
+                "tlsAllowInvalidHostnames": True,
+            }
+            
             self.client = AsyncIOMotorClient(
                 self.mongodb_url,
-                serverSelectionTimeoutMS=5000,  # 5 second timeout
-                connectTimeoutMS=5000,
-                socketTimeoutMS=5000,
+                serverSelectionTimeoutMS=30000,  # Increased timeout
+                connectTimeoutMS=30000,
+                socketTimeoutMS=30000,
                 maxPoolSize=1,  # Limit connections for serverless
-                retryWrites=True
+                retryWrites=True,
+                **ssl_options
             )
             self.database = self.client[self.database_name]
             # Test the connection
