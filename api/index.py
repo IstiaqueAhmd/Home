@@ -1,26 +1,49 @@
 import sys
 import os
+from pathlib import Path
 
 # Add the parent directory to the path so we can import our modules
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
 
 try:
-    # Import the FastAPI app
+    # Try to import the main FastAPI app
     from main import app
+    print("Successfully imported main app")
     
-    # Export the app for Vercel
-    handler = app
 except ImportError as e:
-    print(f"Import error: {e}")
-    # Create a simple fallback app
-    from fastapi import FastAPI
-    fallback_app = FastAPI()
-    
-    @fallback_app.get("/")
-    def read_root():
-        return {"message": "Import error occurred", "error": str(e)}
-    
-    handler = fallback_app
+    print(f"Failed to import main app: {e}")
+    try:
+        # Try serverless fallback
+        from serverless import app
+        print("Using serverless fallback app")
+    except ImportError as e2:
+        print(f"Failed to import serverless app: {e2}")
+        # Create minimal fallback
+        from fastapi import FastAPI
+        from fastapi.responses import JSONResponse
+        from datetime import datetime
+        
+        app = FastAPI(title="Fallback App")
+        
+        @app.get("/")
+        async def root():
+            return JSONResponse({
+                "message": "Fallback application", 
+                "error": f"Main app failed: {e}",
+                "status": "fallback",
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        @app.get("/health")
+        async def health():
+            return JSONResponse({
+                "status": "unhealthy", 
+                "message": "Running on fallback application",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            })
+
+# Export for Vercel
+handler = app

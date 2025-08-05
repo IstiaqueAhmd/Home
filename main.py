@@ -22,32 +22,42 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize database and auth
-db = Database()
-auth_manager = AuthManager()
+# Initialize database and auth with error handling
+try:
+    db = Database()
+    auth_manager = AuthManager()
+except Exception as e:
+    logger.error(f"Failed to initialize database or auth manager: {e}")
+    # Create dummy instances to prevent import errors
+    db = None
+    auth_manager = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
-    try:
-        logger.info("Starting up application...")
-        await db.connect_to_mongo()
-        logger.info("Database connection established")
-    except Exception as e:
-        logger.error(f"Startup error: {str(e)}")
-        logger.warning("Application starting without database connection")
-        # Don't raise the error to allow the app to start even without DB
+    if db is not None:
+        try:
+            logger.info("Starting up application...")
+            await db.connect_to_mongo()
+            logger.info("Database connection established")
+        except Exception as e:
+            logger.error(f"Startup error: {str(e)}")
+            logger.warning("Application starting without database connection")
+            # Don't raise the error to allow the app to start even without DB
+    else:
+        logger.warning("Database not initialized, starting without database connection")
     
     try:
         yield
     finally:
         # Shutdown
-        try:
-            logger.info("Shutting down application...")
-            await db.close_mongo_connection()
-            logger.info("Database connection closed")
-        except Exception as e:
-            logger.error(f"Shutdown error: {str(e)}")
+        if db is not None:
+            try:
+                logger.info("Shutting down application...")
+                await db.close_mongo_connection()
+                logger.info("Database connection closed")
+            except Exception as e:
+                logger.error(f"Shutdown error: {str(e)}")
 
 app = FastAPI(
     title="House Finance Tracker", 
@@ -107,6 +117,12 @@ async def api_root():
 async def health_check():
     """Health check endpoint for deployment"""
     health_status = {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    
+    if db is None:
+        health_status["database"] = "not_initialized"
+        health_status["status"] = "degraded"
+        health_status["message"] = "Database not initialized"
+        return health_status
     
     try:
         # Test database connection
@@ -750,8 +766,5 @@ async def approve_join_request(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
-
-# For Vercel deployment
-app = app
 
 
