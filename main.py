@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if db is not None:
         try:
             logger.info("Starting up application...")
-            await db.connect_to_db()
+            await db.connect_to_mongo()
             logger.info("Database connection established")
         except Exception as e:
             logger.error(f"Startup error: {str(e)}")
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if db is not None:
             try:
                 logger.info("Shutting down application...")
-                await db.close_db_connection()
+                await db.close_mongo_connection()
                 logger.info("Database connection closed")
             except Exception as e:
                 logger.error(f"Shutdown error: {str(e)}")
@@ -126,10 +126,9 @@ async def health_check():
     
     try:
         # Test database connection
-        async with await db.get_session() as session:
-            # Simple test query to check if database is accessible
-            from sqlalchemy import text
-            await session.execute(text("SELECT 1"))
+        database = await db.get_database()
+        # Simple test query to check if database is accessible
+        await database.users.count_documents({})
         health_status["database"] = "connected"
     except Exception as e:
         health_status["database"] = "disconnected"
