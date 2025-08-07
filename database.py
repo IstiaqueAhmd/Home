@@ -57,10 +57,8 @@ class Database:
             # Add SSL options for MongoDB Atlas with better compatibility
             if "mongodb+srv://" in self.mongodb_url:
                 connection_options.update({
-                    "ssl": True,
-                    "ssl_ca_certs": None,
-                    "ssl_check_hostname": False,
-                    "ssl_cert_reqs": ssl.CERT_NONE
+                    "tls": True,
+                    "tlsAllowInvalidCertificates": True
                 })
             
             self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
