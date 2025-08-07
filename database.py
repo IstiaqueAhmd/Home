@@ -1,5 +1,6 @@
 import os
 import ssl
+import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import DuplicateKeyError
 from typing import Optional, List
@@ -37,32 +38,51 @@ class Database:
             print(f"Database name loaded: {self.database_name}")
         
     async def connect_to_mongo(self):
-        try:
-            # Check if MongoDB URL is properly loaded
-            if not self.mongodb_url:
-                raise ValueError("MONGODB_URL environment variable is not set")
-            
-            if not self.database_name:
-                raise ValueError("DATABASE_NAME environment variable is not set")
-            
-            # Connection options - let mongodb+srv:// handle SSL automatically
-            connection_options = {
-                "serverSelectionTimeoutMS": 10000,
-                "connectTimeoutMS": 10000,
-                "socketTimeoutMS": 10000,
-                "maxPoolSize": 1,
-                "retryWrites": True
-            }
-            
-            self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
-            self.database = self.client[self.database_name]
-            
-            # Test the connection
-            await self.client.admin.command('ping')
-            print("MongoDB connection successful")
-        except Exception as e:
-            print(f"MongoDB connection failed: {str(e)}")
-            raise e
+        """Try multiple connection approaches to handle SSL issues"""
+        # Check if MongoDB URL is properly loaded
+        if not self.mongodb_url:
+            raise ValueError("MONGODB_URL environment variable is not set")
+        
+        if not self.database_name:
+            raise ValueError("DATABASE_NAME environment variable is not set")
+        
+        connection_attempts = [
+            # Attempt 1: Minimal options
+            {"serverSelectionTimeoutMS": 5000, "connectTimeoutMS": 5000, "socketTimeoutMS": 5000},
+            # Attempt 2: No timeout options at all
+            {},
+            # Attempt 3: Different timeout values
+            {"serverSelectionTimeoutMS": 20000, "connectTimeoutMS": 20000, "socketTimeoutMS": 20000},
+        ]
+        
+        last_error = None
+        
+        for i, options in enumerate(connection_attempts, 1):
+            try:
+                print(f"MongoDB connection attempt {i}...")
+                self.client = AsyncIOMotorClient(self.mongodb_url, **options)
+                self.database = self.client[self.database_name]
+                
+                # Test the connection with a quick timeout
+                await asyncio.wait_for(
+                    self.client.admin.command('ping'), 
+                    timeout=10
+                )
+                print("MongoDB connection successful")
+                return  # Success, exit the function
+                
+            except Exception as e:
+                print(f"Attempt {i} failed: {str(e)}")
+                last_error = e
+                if self.client:
+                    self.client.close()
+                    self.client = None
+                    self.database = None
+                continue
+        
+        # If all attempts failed, raise the last error
+        print(f"All MongoDB connection attempts failed")
+        raise last_error
         
     async def close_mongo_connection(self):
         if self.client:
