@@ -45,21 +45,14 @@ class Database:
             if not self.database_name:
                 raise ValueError("DATABASE_NAME environment variable is not set")
             
-            # Alternative connection options for better SSL compatibility
+            # Connection options - let mongodb+srv:// handle SSL automatically
             connection_options = {
-                "serverSelectionTimeoutMS": 30000,  # Increased timeout
-                "connectTimeoutMS": 30000,  # Increased timeout
-                "socketTimeoutMS": 30000,  # Increased timeout
+                "serverSelectionTimeoutMS": 10000,
+                "connectTimeoutMS": 10000,
+                "socketTimeoutMS": 10000,
                 "maxPoolSize": 1,
                 "retryWrites": True
             }
-            
-            # Add SSL options for MongoDB Atlas with better compatibility
-            if "mongodb+srv://" in self.mongodb_url:
-                connection_options.update({
-                    "tls": True,
-                    "tlsAllowInvalidCertificates": True
-                })
             
             self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
             self.database = self.client[self.database_name]
