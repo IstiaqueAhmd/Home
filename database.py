@@ -11,8 +11,8 @@ load_dotenv()
 
 class Database:
     def __init__(self):
-        self.mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-        self.database_name = os.getenv("DATABASE_NAME", "house_finance_tracker")
+        self.mongodb_url = os.getenv("MONGODB_URL")
+        self.database_name = os.getenv("DATABASE_NAME")
         self.client = None
         self.database = None
         self.auth_manager = AuthManager()
