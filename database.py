@@ -19,15 +19,27 @@ class Database:
         
     async def connect_to_mongo(self):
         try:
-            self.client = AsyncIOMotorClient(
-                self.mongodb_url,
-                serverSelectionTimeoutMS=5000,  # 5 second timeout
-                connectTimeoutMS=5000,
-                socketTimeoutMS=5000,
-                maxPoolSize=1,  # Limit connections for serverless
-                retryWrites=True
-            )
+            # Alternative connection options for better SSL compatibility
+            connection_options = {
+                "serverSelectionTimeoutMS": 5000,
+                "connectTimeoutMS": 5000,
+                "socketTimeoutMS": 5000,
+                "maxPoolSize": 1,
+                "retryWrites": True
+            }
+            
+            # Add SSL options for MongoDB Atlas
+            if "mongodb+srv://" in self.mongodb_url or "ssl=true" in self.mongodb_url:
+                connection_options.update({
+                    "ssl": True,
+                    "ssl_cert_reqs": None,
+                    "tlsAllowInvalidCertificates": True,
+                    "tlsInsecure": True
+                })
+            
+            self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
             self.database = self.client[self.database_name]
+            
             # Test the connection
             await self.client.admin.command('ping')
             print("MongoDB connection successful")
