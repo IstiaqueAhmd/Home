@@ -53,12 +53,13 @@ class Database:
                 "retryWrites": True
             }
             
-            # Add SSL options for MongoDB Atlas (only if URL contains specific indicators)
-            if self.mongodb_url and ("mongodb+srv://" in self.mongodb_url or "ssl=true" in self.mongodb_url):
+            # Add SSL options for MongoDB Atlas (only if URL contains specific indicators and options aren't already in URL)
+            if (self.mongodb_url and "mongodb+srv://" in self.mongodb_url and 
+                "tlsAllowInvalidCertificates" not in self.mongodb_url and 
+                "ssl=" not in self.mongodb_url):
                 connection_options.update({
                     "tls": True,
-                    "tlsAllowInvalidCertificates": True,
-                    "tlsInsecure": True
+                    "tlsAllowInvalidCertificates": True
                 })
             
             self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
