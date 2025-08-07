@@ -56,8 +56,7 @@ class Database:
             # Add SSL options for MongoDB Atlas (only if URL contains specific indicators)
             if self.mongodb_url and ("mongodb+srv://" in self.mongodb_url or "ssl=true" in self.mongodb_url):
                 connection_options.update({
-                    "ssl": True,
-                    "ssl_cert_reqs": None,
+                    "tls": True,
                     "tlsAllowInvalidCertificates": True,
                     "tlsInsecure": True
                 })
