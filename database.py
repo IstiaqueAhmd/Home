@@ -46,21 +46,16 @@ class Database:
             
             # Alternative connection options for better SSL compatibility
             connection_options = {
-                "serverSelectionTimeoutMS": 5000,
-                "connectTimeoutMS": 5000,
-                "socketTimeoutMS": 5000,
+                "serverSelectionTimeoutMS": 30000,  # Increased timeout
+                "connectTimeoutMS": 30000,  # Increased timeout
+                "socketTimeoutMS": 30000,  # Increased timeout
                 "maxPoolSize": 1,
                 "retryWrites": True
             }
             
-            # Add SSL options for MongoDB Atlas (only if URL contains specific indicators and options aren't already in URL)
-            if (self.mongodb_url and "mongodb+srv://" in self.mongodb_url and 
-                "tlsAllowInvalidCertificates" not in self.mongodb_url and 
-                "ssl=" not in self.mongodb_url):
-                connection_options.update({
-                    "tls": True,
-                    "tlsAllowInvalidCertificates": True
-                })
+            # For MongoDB Atlas, remove SSL parameters from connection options 
+            # since they're already in the URL
+            # The URL already contains ssl=true&tlsAllowInvalidCertificates=true
             
             self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
             self.database = self.client[self.database_name]
