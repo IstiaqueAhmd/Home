@@ -7,6 +7,11 @@ from auth import AuthManager
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Load environment variables with explicit path
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
+
+# Also try loading from current directory
 load_dotenv()
 
 class Database:
@@ -17,8 +22,28 @@ class Database:
         self.database = None
         self.auth_manager = AuthManager()
         
+        # Debug: Print loaded environment variables (without password)
+        if not self.mongodb_url:
+            print("ERROR: MONGODB_URL environment variable is not set")
+        else:
+            # Print URL without password for debugging
+            safe_url = self.mongodb_url.replace(self.mongodb_url.split('://')[1].split('@')[0], "***:***")
+            print(f"MongoDB URL loaded: {safe_url}")
+            
+        if not self.database_name:
+            print("ERROR: DATABASE_NAME environment variable is not set")
+        else:
+            print(f"Database name loaded: {self.database_name}")
+        
     async def connect_to_mongo(self):
         try:
+            # Check if MongoDB URL is properly loaded
+            if not self.mongodb_url:
+                raise ValueError("MONGODB_URL environment variable is not set")
+            
+            if not self.database_name:
+                raise ValueError("DATABASE_NAME environment variable is not set")
+            
             # Alternative connection options for better SSL compatibility
             connection_options = {
                 "serverSelectionTimeoutMS": 5000,
@@ -28,8 +53,8 @@ class Database:
                 "retryWrites": True
             }
             
-            # Add SSL options for MongoDB Atlas
-            if "mongodb+srv://" in self.mongodb_url or "ssl=true" in self.mongodb_url:
+            # Add SSL options for MongoDB Atlas (only if URL contains specific indicators)
+            if self.mongodb_url and ("mongodb+srv://" in self.mongodb_url or "ssl=true" in self.mongodb_url):
                 connection_options.update({
                     "ssl": True,
                     "ssl_cert_reqs": None,
