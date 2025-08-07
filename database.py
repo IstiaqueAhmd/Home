@@ -1,4 +1,5 @@
 import os
+import ssl
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import DuplicateKeyError
 from typing import Optional, List
@@ -53,9 +54,14 @@ class Database:
                 "retryWrites": True
             }
             
-            # For MongoDB Atlas, remove SSL parameters from connection options 
-            # since they're already in the URL
-            # The URL already contains ssl=true&tlsAllowInvalidCertificates=true
+            # Add SSL options for MongoDB Atlas with better compatibility
+            if "mongodb+srv://" in self.mongodb_url:
+                connection_options.update({
+                    "ssl": True,
+                    "ssl_ca_certs": None,
+                    "ssl_check_hostname": False,
+                    "ssl_cert_reqs": ssl.CERT_NONE
+                })
             
             self.client = AsyncIOMotorClient(self.mongodb_url, **connection_options)
             self.database = self.client[self.database_name]
