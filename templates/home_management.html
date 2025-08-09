@@ -149,14 +149,22 @@
                     </div>
                 </div>
                 
-                {% if not is_leader %}
-                <form method="post" action="/leave-home" class="d-inline">
-                    <button type="submit" class="btn btn-outline-danger btn-sm" 
-                            onclick="return confirm('Are you sure you want to leave this home?')">
-                        <i class="fas fa-door-open me-1"></i>Leave Home
-                    </button>
-                </form>
-                {% endif %}
+                <div class="mt-3">
+                    {% if not is_leader %}
+                    <form method="post" action="/leave-home" class="d-inline">
+                        <button type="submit" class="btn btn-danger" 
+                                onclick="return confirm('Are you sure you want to exit this home? You will lose access to all shared data and will need to be re-invited to join again.')">
+                            <i class="fas fa-sign-out-alt me-2"></i>Exit Home
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Home Leader:</strong> You can only exit this home if you're the only member remaining. 
+                        To transfer leadership, please contact support or remove all other members first.
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
@@ -241,6 +249,62 @@
                     </div>
                 </div>
                 {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Exit Home Section -->
+        {% if user_home %}
+        <div class="card border-danger mb-4">
+            <div class="card-header bg-danger text-white border-0">
+                <h5 class="mb-0">
+                    <i class="fas fa-sign-out-alt me-2"></i>Exit Home
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if not is_leader %}
+                    <p class="text-muted mb-3">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Leaving this home will remove your access to all shared data including contributions, transfers, and analytics. 
+                        You'll need to be re-invited to join again.
+                    </p>
+                    <form method="post" action="/leave-home" class="d-inline">
+                        <button type="submit" class="btn btn-danger" 
+                                onclick="return confirm('⚠️ WARNING: Are you absolutely sure you want to exit this home?\\n\\nThis action will:\\n• Remove your access to all shared data\\n• Delete your contribution history from the home\\n• Require you to be re-invited to join again\\n\\nThis cannot be undone. Do you want to continue?')">
+                            <i class="fas fa-sign-out-alt me-2"></i>Exit Home Permanently
+                        </button>
+                    </form>
+                {% else %}
+                    <div class="alert alert-warning mb-3">
+                        <i class="fas fa-crown me-2"></i>
+                        <strong>Home Leader Notice:</strong> As the home leader, you have additional responsibilities.
+                    </div>
+                    <p class="text-muted mb-3">
+                        You can only exit this home under specific conditions:
+                    </p>
+                    <ul class="text-muted mb-3">
+                        <li>You are the only member remaining in the home, OR</li>
+                        <li>You transfer leadership to another member first</li>
+                    </ul>
+                    
+                    {% if home_members|length == 1 %}
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You are the only member in this home, so you can exit and the home will be deleted.
+                    </div>
+                    <form method="post" action="/leave-home" class="d-inline">
+                        <button type="submit" class="btn btn-danger" 
+                                onclick="return confirm('⚠️ WARNING: You are about to delete this home permanently!\\n\\nThis action will:\\n• Delete the entire home and all its data\\n• Remove all contribution and transfer history\\n• Cannot be undone\\n\\nAre you absolutely sure you want to continue?')">
+                            <i class="fas fa-trash-alt me-2"></i>Delete Home & Exit
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-users me-2"></i>
+                        You cannot exit while other members are in the home. Please remove all members first or transfer leadership.
+                    </div>
+                    {% endif %}
+                {% endif %}
             </div>
         </div>
         {% endif %}
