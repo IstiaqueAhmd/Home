@@ -250,6 +250,9 @@ async def dashboard_authenticated(request: Request):
             now = datetime.now()
             current_month_summary = await db.get_home_monthly_summary(user_home.id, now.year, now.month)
         
+        # Get contribution to average data
+        contribution_to_average = await db.get_contribution_to_average(user.username)
+        
         return templates.TemplateResponse("dashboard.html", {
             "request": request, 
             "user": user,
@@ -257,7 +260,8 @@ async def dashboard_authenticated(request: Request):
             "contributions": contributions,
             "user_balance": user_balance,
             "current_month_summary": current_month_summary,
-            "current_month_name": datetime.now().strftime("%B") if user_home else None
+            "current_month_name": datetime.now().strftime("%B") if user_home else None,
+            "contribution_to_average": contribution_to_average
         })
     except:
         return RedirectResponse(url="/login")

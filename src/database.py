@@ -37,53 +37,37 @@ class Database:
         else:
             print(f"Database name loaded: {self.database_name}")
         
+    
     async def connect_to_mongo(self):
-        """Try multiple connection approaches to handle SSL issues"""
-        # Check if MongoDB URL is properly loaded
-        if not self.mongodb_url:
-            raise ValueError("MONGODB_URL environment variable is not set")
+        """Simplified connection with better SSL handling"""
+        if not self.mongodb_url or not self.database_name:
+            raise ValueError("MongoDB connection variables not set")
         
-        if not self.database_name:
-            raise ValueError("DATABASE_NAME environment variable is not set")
-        
-        connection_attempts = [
-            # Attempt 1: Minimal options
-            {"serverSelectionTimeoutMS": 5000, "connectTimeoutMS": 5000, "socketTimeoutMS": 5000},
-            # Attempt 2: No timeout options at all
-            {},
-            # Attempt 3: Different timeout values
-            {"serverSelectionTimeoutMS": 20000, "connectTimeoutMS": 20000, "socketTimeoutMS": 20000},
-        ]
-        
-        last_error = None
-        
-        for i, options in enumerate(connection_attempts, 1):
-            try:
-                print(f"MongoDB connection attempt {i}...")
-                self.client = AsyncIOMotorClient(self.mongodb_url, **options)
-                self.database = self.client[self.database_name]
-                
-                # Test the connection with a quick timeout
-                await asyncio.wait_for(
-                    self.client.admin.command('ping'), 
-                    timeout=10
-                )
-                print("MongoDB connection successful")
-                return  # Success, exit the function
-                
-            except Exception as e:
-                print(f"Attempt {i} failed: {str(e)}")
-                last_error = e
-                if self.client:
-                    self.client.close()
-                    self.client = None
-                    self.database = None
-                continue
-        
-        # If all attempts failed, raise the last error
-        print(f"All MongoDB connection attempts failed")
-        raise last_error
-        
+        try:
+            # Use a clean URL without explicit TLS parameter
+            clean_url = self.mongodb_url.replace("&tls=true", "").replace("?tls=true", "")
+            
+            # Simple connection with SSL auto-detection
+            self.client = AsyncIOMotorClient(
+                clean_url,
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=30000,
+                socketTimeoutMS=30000
+            )
+            
+            self.database = self.client[self.database_name]
+            
+            # Test connection
+            await asyncio.wait_for(
+                self.client.admin.command('ping'), 
+                timeout=30
+            )
+            print("MongoDB connection successful")
+            
+        except Exception as e:
+            print(f"MongoDB connection failed: {str(e)}")
+            raise e
+
     async def close_mongo_connection(self):
         if self.client:
             self.client.close()
@@ -1283,3 +1267,78 @@ class Database:
             return True
         except:
             return False
+
+    async def get_contribution_to_average(self, username: str) -> dict:
+        """Calculate how much user needs to contribute to reach the average contribution of their home"""
+        db = await self.get_database()
+        
+        try:
+            # Get user's home
+            user = await self.get_user(username)
+            if not user or not user.home_id:
+                return {
+                    "user_total": 0,
+                    "average_contribution": 0,
+                    "amount_to_reach_average": 0,
+                    "is_above_average": False,
+                    "home_members_count": 0
+                }
+            
+            # Get home members count
+            home = await self.get_home(user.home_id)
+            if not home:
+                return {
+                    "user_total": 0,
+                    "average_contribution": 0,
+                    "amount_to_reach_average": 0,
+                    "is_above_average": False,
+                    "home_members_count": 0
+                }
+            
+            # Get total contributions by all home members
+            home_total_pipeline = [
+                {"$match": {"home_id": user.home_id}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+            ]
+            
+            home_total_result = []
+            async for doc in db.contributions.aggregate(home_total_pipeline):
+                home_total_result.append(doc)
+            home_total = home_total_result[0]["total"] if home_total_result else 0
+            
+            # Get user's total contributions
+            user_total_pipeline = [
+                {"$match": {"username": username, "home_id": user.home_id}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+            ]
+            
+            user_total_result = []
+            async for doc in db.contributions.aggregate(user_total_pipeline):
+                user_total_result.append(doc)
+            user_total = user_total_result[0]["total"] if user_total_result else 0
+            
+            # Calculate average contribution per member
+            home_members_count = len(home.members)
+            average_contribution = home_total / home_members_count if home_members_count > 0 else 0
+            
+            # Calculate amount needed to reach average
+            amount_to_reach_average = max(0, average_contribution - user_total)
+            is_above_average = user_total >= average_contribution
+            
+            return {
+                "user_total": user_total,
+                "average_contribution": average_contribution,
+                "amount_to_reach_average": amount_to_reach_average,
+                "is_above_average": is_above_average,
+                "home_members_count": home_members_count,
+                "home_total": home_total
+            }
+        except Exception as e:
+            print(f"Error calculating contribution to average: {str(e)}")
+            return {
+                "user_total": 0,
+                "average_contribution": 0,
+                "amount_to_reach_average": 0,
+                "is_above_average": False,
+                "home_members_count": 0
+            }

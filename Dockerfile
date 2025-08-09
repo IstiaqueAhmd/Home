@@ -1,5 +1,7 @@
-
 FROM python:3.12-slim
+
+# Install CA certificates
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Set work directory
 WORKDIR /app
@@ -9,13 +11,13 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
-COPY . ./
+COPY . .
 
 # Expose port
 EXPOSE 8000
 
-# Set PYTHONPATH so imports from src work
+# Set PYTHONPATH
 ENV PYTHONPATH=/app/src
 
-# Run the FastAPI app with Uvicorn
+# Run the app
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

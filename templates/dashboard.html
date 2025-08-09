@@ -90,11 +90,21 @@
     </div>
     
     <div class="col-6 col-lg-3">
-        <div class="card stats-card info h-100 border-0">
+        <div class="card stats-card {% if user_home and contribution_to_average.home_members_count > 1 %}{% if contribution_to_average.is_above_average %}success{% else %}info{% endif %}{% else %}info{% endif %} h-100 border-0">
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        {% if user_home and current_month_name %}
+                        {% if user_home and contribution_to_average.home_members_count > 1 %}
+                            {% if contribution_to_average.is_above_average %}
+                            <h6 class="card-title mb-2 fs-6 fw-normal opacity-75">Above Average</h6>
+                            <h2 class="mb-1 fw-bold fs-4 fs-lg-2">${{ "%.0f"|format(contribution_to_average.user_total - contribution_to_average.average_contribution) }}</h2>
+                            <small class="opacity-75 d-none d-sm-block">vs house average</small>
+                            {% else %}
+                            <h6 class="card-title mb-2 fs-6 fw-normal opacity-75">To Reach Average</h6>
+                            <h2 class="mb-1 fw-bold fs-4 fs-lg-2">${{ "%.0f"|format(contribution_to_average.amount_to_reach_average) }}</h2>
+                            <small class="opacity-75 d-none d-sm-block">{{ "%.1f"|format((contribution_to_average.user_total / contribution_to_average.average_contribution * 100) if contribution_to_average.average_contribution > 0 else 0) }}% of average</small>
+                            {% endif %}
+                        {% elif user_home and current_month_name %}
                         <h6 class="card-title mb-2 fs-6 fw-normal opacity-75">{{ current_month_name }} Total</h6>
                         <h2 class="mb-1 fw-bold fs-4 fs-lg-2">${{ "%.0f"|format(current_month_summary.total_amount or 0) }}</h2>
                         <small class="opacity-75 d-none d-sm-block">{{ current_month_summary.total_count or 0 }} contributions</small>
@@ -105,7 +115,13 @@
                         {% endif %}
                     </div>
                     <div class="align-self-start">
-                        {% if user_home %}
+                        {% if user_home and contribution_to_average.home_members_count > 1 %}
+                            {% if contribution_to_average.is_above_average %}
+                            <i class="fas fa-star fa-2x fa-lg-3x opacity-75"></i>
+                            {% else %}
+                            <i class="fas fa-chart-line fa-2x fa-lg-3x opacity-75"></i>
+                            {% endif %}
+                        {% elif user_home %}
                         <i class="fas fa-calendar-alt fa-2x fa-lg-3x opacity-75"></i>
                         {% else %}
                         <i class="fas fa-home fa-2x fa-lg-3x opacity-75"></i>
@@ -116,6 +132,59 @@
         </div>
         </div>
     </div>
+
+    <!-- Contribution to Average Alert - Only show if user has a home and there are multiple members -->
+    {% if user_home and contribution_to_average.home_members_count > 1 %}
+    <div class="row mb-4">
+        <div class="col-12">
+            {% if contribution_to_average.is_above_average %}
+            <!-- User is above average -->
+            <div class="card border-0 bg-success bg-gradient">
+                <div class="card-body text-center py-4">
+                    <h5 class="text-white mb-3">
+                        <i class="fas fa-star me-2"></i>Great Work!
+                    </h5>
+                    <p class="text-white-50 mb-3">
+                        You've contributed <strong>${{ "%.0f"|format(contribution_to_average.user_total) }}</strong>, 
+                        which is <strong>${{ "%.0f"|format(contribution_to_average.user_total - contribution_to_average.average_contribution) }}</strong> 
+                        above the house average of <strong>${{ "%.0f"|format(contribution_to_average.average_contribution) }}</strong>
+                    </p>
+                    <div class="small text-white-50">
+                        <i class="fas fa-users me-1"></i>House average based on {{ contribution_to_average.home_members_count }} members
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- User is below average -->
+            <div class="card border-0 bg-warning bg-gradient">
+                <div class="card-body text-center py-4">
+                    <h5 class="text-dark mb-3">
+                        <i class="fas fa-chart-line me-2"></i>Catch Up Goal
+                    </h5>
+                    <p class="text-dark mb-3">
+                        You need <strong>${{ "%.0f"|format(contribution_to_average.amount_to_reach_average) }}</strong> 
+                        more to reach the house average of <strong>${{ "%.0f"|format(contribution_to_average.average_contribution) }}</strong>
+                    </p>
+                    <p class="small text-dark mb-4">
+                        Your current total: <strong>${{ "%.0f"|format(contribution_to_average.user_total) }}</strong> • 
+                        House average: <strong>${{ "%.0f"|format(contribution_to_average.average_contribution) }}</strong>
+                    </p>
+                    <div class="progress mb-3" style="height: 8px;">
+                        {% set progress_percentage = (contribution_to_average.user_total / contribution_to_average.average_contribution * 100)|round(1) if contribution_to_average.average_contribution > 0 else 0 %}
+                        <div class="progress-bar bg-primary" role="progressbar" 
+                             style="width: {{ progress_percentage }}%" 
+                             aria-valuenow="{{ progress_percentage }}" 
+                             aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="small text-dark">
+                        <i class="fas fa-users me-1"></i>Based on {{ contribution_to_average.home_members_count }} house members
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Quick Actions - Add Contribution -->
     {% if user_home %}
