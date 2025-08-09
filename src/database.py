@@ -314,8 +314,17 @@ class Database:
                 "count": doc["count"]
             })
         
-        # Contributions by product
+        # Contributions by product (excluding fund transfers)
         pipeline_by_product = [
+            {
+                "$match": {
+                    "product_name": {
+                        "$not": {
+                            "$regex": "^Fund (transfer|received)"
+                        }
+                    }
+                }
+            },
             {
                 "$group": {
                     "_id": "$product_name",
@@ -421,9 +430,18 @@ class Database:
                 "count": doc["count"]
             })
         
-        # Contributions by product in this home
+        # Contributions by product in this home (excluding fund transfers)
         pipeline_by_product = [
-            {"$match": {"home_id": home_id}},
+            {
+                "$match": {
+                    "home_id": home_id,
+                    "product_name": {
+                        "$not": {
+                            "$regex": "^Fund (transfer|received)"
+                        }
+                    }
+                }
+            },
             {
                 "$group": {
                     "_id": "$product_name",
@@ -482,21 +500,11 @@ class Database:
     async def get_user_statistics(self, username: str) -> dict:
         db = await self.get_database()
         
-        # User's total contributions
+        # User's total contributions (including positive and negative amounts)
         user_contributions = await db.contributions.count_documents({"username": username})
         
-        # User's total amount
-        pipeline_user_total = [
-            {"$match": {"username": username}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        user_total_result = []
-        async for doc in db.contributions.aggregate(pipeline_user_total):
-            user_total_result.append(doc)
-        user_total_amount = user_total_result[0]["total"] if user_total_result else 0
-        
-        # User's current balance
-        user_balance = await self.get_user_balance(username)
+        # User's total contribution amount
+        user_total_amount = await self.get_user_balance(username)
         
         # User's transfer statistics
         sent_transfers = await db.transfers.count_documents({"sender_username": username})
@@ -508,13 +516,17 @@ class Database:
             doc["id"] = str(doc["_id"])
             recent_contributions.append(Contribution(**doc))
         
+        # Get contribution to average statistics
+        contribution_stats = await self.get_contribution_to_average(username)
+        
         return {
             "total_contributions": user_contributions,
             "total_amount": user_total_amount,
-            "current_balance": user_balance,
+            "current_balance": user_total_amount,  # Same as total amount now
             "sent_transfers": sent_transfers,
             "received_transfers": received_transfers,
-            "recent_contributions": recent_contributions
+            "recent_contributions": recent_contributions,
+            "contribution_to_average": contribution_stats
         }
     
     async def update_user_profile(self, username: str, full_name: str, email: str) -> bool:
@@ -708,9 +720,18 @@ class Database:
                 "count": doc["count"]
             })
         
-        # Contributions by product for the month
+        # Contributions by product for the month (excluding fund transfers)
         product_pipeline = [
-            {"$match": match_condition},
+            {
+                "$match": {
+                    **match_condition,
+                    "product_name": {
+                        "$not": {
+                            "$regex": "^Fund (transfer|received)"
+                        }
+                    }
+                }
+            },
             {
                 "$group": {
                     "_id": "$product_name",
@@ -811,9 +832,18 @@ class Database:
                 "count": doc["count"]
             })
         
-        # Contributions by product for the month in this home
+        # Contributions by product for the month in this home (excluding fund transfers)
         product_pipeline = [
-            {"$match": match_condition},
+            {
+                "$match": {
+                    **match_condition,
+                    "product_name": {
+                        "$not": {
+                            "$regex": "^Fund (transfer|received)"
+                        }
+                    }
+                }
+            },
             {
                 "$group": {
                     "_id": "$product_name",
@@ -844,10 +874,10 @@ class Database:
         }
 
     async def get_user_balance(self, username: str) -> float:
-        """Calculate user's available balance from contributions and transfers"""
+        """Get user's total contribution amount (including negative transfers)"""
         db = await self.get_database()
         
-        # Get total contributions
+        # Get total contributions (including negative amounts from transfers received)
         contributions_pipeline = [
             {"$match": {"username": username}},
             {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
@@ -858,33 +888,10 @@ class Database:
             contributions_result.append(doc)
         total_contributions = contributions_result[0]["total"] if contributions_result else 0
         
-        # Get total sent transfers
-        sent_transfers_pipeline = [
-            {"$match": {"sender_username": username}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        
-        sent_result = []
-        async for doc in db.transfers.aggregate(sent_transfers_pipeline):
-            sent_result.append(doc)
-        total_sent = sent_result[0]["total"] if sent_result else 0
-        
-        # Get total received transfers
-        received_transfers_pipeline = [
-            {"$match": {"recipient_username": username}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        
-        received_result = []
-        async for doc in db.transfers.aggregate(received_transfers_pipeline):
-            received_result.append(doc)
-        total_received = received_result[0]["total"] if received_result else 0
-        
-        # Balance = contributions + received - sent
-        return total_contributions + total_received - total_sent
+        return total_contributions
 
     async def create_transfer(self, sender_username: str, transfer_data: TransferCreate) -> Transfer:
-        """Create a new transfer between users"""
+        """Create a new transfer between users - adjusts contribution amounts"""
         db = await self.get_database()
         
         # Get sender and recipient users
@@ -898,26 +905,58 @@ class Database:
         if not sender.home_id or sender.home_id != recipient.home_id:
             raise ValueError("Users must belong to the same home to transfer money")
         
-        # Check if sender has sufficient balance
-        sender_balance = await self.get_user_balance(sender_username)
-        if sender_balance < transfer_data.amount:
-            raise ValueError("Insufficient balance for transfer")
-        
         # Check if sender is not transferring to themselves
         if sender_username == transfer_data.recipient_username:
             raise ValueError("Cannot transfer to yourself")
         
+        # Get contribution stats to validate the transfer logic
+        sender_stats = await self.get_contribution_to_average(sender_username)
+        recipient_stats = await self.get_contribution_to_average(transfer_data.recipient_username)
+        
+        # Validate that sender has lower contributions than average
+        if sender_stats["is_above_average"]:
+            raise ValueError("Only users with below-average contributions can give money to others")
+        
+        # Validate that recipient has higher than average contributions
+        if not recipient_stats["is_above_average"]:
+            raise ValueError("You can only transfer money to users with above-average contributions")
+        
+        # Validate transfer amount
+        if transfer_data.amount <= 0:
+            raise ValueError("Transfer amount must be positive")
+        
+        # Check if sender can afford this without going into negative contribution
+        if sender_stats["user_total"] < transfer_data.amount:
+            raise ValueError("Cannot transfer more than your total contributions")
+        
+        # Create the transfer record
         transfer_dict = {
             "sender_username": sender_username,
             "recipient_username": transfer_data.recipient_username,
             "home_id": sender.home_id,
             "amount": transfer_data.amount,
-            "description": transfer_data.description or "",
+            "description": transfer_data.description or "Fund transfer to balance contributions",
             "date_created": datetime.utcnow()
         }
         
         result = await db.transfers.insert_one(transfer_dict)
         transfer_dict["id"] = str(result.inserted_id)
+        
+        # Create contribution adjustments
+        # Add contribution for sender (giver)
+        await self.create_contribution(sender_username, {
+            "product_name": f"Fund transfer to {recipient.full_name}",
+            "amount": transfer_data.amount,
+            "description": f"Transfer to {recipient.full_name}: {transfer_data.description or 'Balancing household contributions'}"
+        })
+        
+        # Subtract contribution for recipient (receiver) by creating a negative contribution
+        await self.create_contribution(transfer_data.recipient_username, {
+            "product_name": f"Fund received from {sender.full_name}",
+            "amount": -transfer_data.amount,
+            "description": f"Received from {sender.full_name}: {transfer_data.description or 'Balancing household contributions'}"
+        })
+        
         return Transfer(**transfer_dict)
 
     async def get_user_transfers(self, username: str) -> dict:
@@ -1267,6 +1306,70 @@ class Database:
             return True
         except:
             return False
+
+    async def get_eligible_transfer_recipients(self, sender_username: str) -> List[dict]:
+        """Get users in the same home who are eligible to receive fund transfers (above-average contributors)"""
+        db = await self.get_database()
+        
+        try:
+            # Get sender's home
+            sender = await self.get_user(sender_username)
+            if not sender or not sender.home_id:
+                return []
+            
+            home = await self.get_home(sender.home_id)
+            if not home:
+                return []
+            
+            # Get home average contribution
+            home_total_pipeline = [
+                {"$match": {"home_id": sender.home_id}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+            ]
+            
+            home_total_result = []
+            async for doc in db.contributions.aggregate(home_total_pipeline):
+                home_total_result.append(doc)
+            home_total = home_total_result[0]["total"] if home_total_result else 0
+            
+            home_members_count = len(home.members)
+            average_contribution = home_total / home_members_count if home_members_count > 0 else 0
+            
+            # Get eligible recipients (excluding sender)
+            eligible_recipients = []
+            for member_username in home.members:
+                if member_username == sender_username:
+                    continue
+                
+                # Get member's total contribution
+                member_total_pipeline = [
+                    {"$match": {"username": member_username, "home_id": sender.home_id}},
+                    {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+                ]
+                
+                member_total_result = []
+                async for doc in db.contributions.aggregate(member_total_pipeline):
+                    member_total_result.append(doc)
+                member_total = member_total_result[0]["total"] if member_total_result else 0
+                
+                # Only include if above average
+                if member_total >= average_contribution:
+                    member = await self.get_user(member_username)
+                    if member:
+                        eligible_recipients.append({
+                            "username": member_username,
+                            "full_name": member.full_name,
+                            "total_contribution": member_total,
+                            "above_average_by": member_total - average_contribution
+                        })
+            
+            # Sort by contribution amount (highest first)
+            eligible_recipients.sort(key=lambda x: x["total_contribution"], reverse=True)
+            return eligible_recipients
+            
+        except Exception as e:
+            print(f"Error getting eligible transfer recipients: {str(e)}")
+            return []
 
     async def get_contribution_to_average(self, username: str) -> dict:
         """Calculate how much user needs to contribute to reach the average contribution of their home"""

@@ -20,29 +20,29 @@
     <!-- Summary Cards -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-4">
-            <div class="stats-card bg-primary text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center">
-                    <i class="fas fa-list fa-2x mb-2 opacity-75"></i>
-                    <h3 class="mb-1">{{ contributions|length }}</h3>
-                    <small class="opacity-75">Total Contributions</small>
+                    <i class="fas fa-list fa-2x mb-2 text-primary"></i>
+                    <h3 class="mb-1 text-dark">{{ contributions|length }}</h3>
+                    <small class="text-muted">Total Contributions</small>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-4">
-            <div class="stats-card bg-success text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center">
-                    <i class="fas fa-dollar-sign fa-2x mb-2 opacity-75"></i>
-                    <h3 class="mb-1">${{ "%.0f"|format(contributions|map(attribute='amount')|sum) }}</h3>
-                    <small class="opacity-75">Total Amount</small>
+                    <i class="fas fa-dollar-sign fa-2x mb-2 text-success"></i>
+                    <h3 class="mb-1 text-dark">${{ "%.0f"|format(contributions|map(attribute='amount')|sum) }}</h3>
+                    <small class="text-muted">Total Amount</small>
                 </div>
             </div>
         </div>
         <div class="col-12 col-md-4">
-            <div class="stats-card bg-info text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center">
-                    <i class="fas fa-chart-line fa-2x mb-2 opacity-75"></i>
-                    <h3 class="mb-1">${{ "%.0f"|format((contributions|map(attribute='amount')|sum) / (contributions|length)) }}</h3>
-                    <small class="opacity-75">Average Amount</small>
+                    <i class="fas fa-chart-line fa-2x mb-2 text-info"></i>
+                    <h3 class="mb-1 text-dark">${{ "%.0f"|format((contributions|map(attribute='amount')|sum) / (contributions|length)) }}</h3>
+                    <small class="text-muted">Average Amount</small>
                 </div>
             </div>
         </div>

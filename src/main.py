@@ -511,18 +511,27 @@ async def transfers_page(request: Request):
                 "transfers": {"sent": [], "received": []},
                 "balance": 0,
                 "available_users": [],
+                "contribution_stats": None,
+                "can_transfer": False,
                 "no_home_message": "Please create or join a home to transfer money with your household members."
             })
         
         # Get user's transfers
         transfers = await db.get_user_transfers(user.username)
         
-        # Get user's current balance
+        # Get user's current balance (total contributions)
         balance = await db.get_user_balance(user.username)
         
-        # Get home members for transfer form (excluding current user)
-        home_members = await db.get_home_members(user_home.id)
-        available_users = [u for u in home_members if u.username != user.username]
+        # Get user's contribution statistics
+        contribution_stats = await db.get_contribution_to_average(user.username)
+        
+        # Check if user can make transfers (below average contributors only)
+        can_transfer = not contribution_stats["is_above_average"] and contribution_stats["user_total"] > 0
+        
+        # Get eligible recipients (above-average contributors)
+        eligible_recipients = []
+        if can_transfer:
+            eligible_recipients = await db.get_eligible_transfer_recipients(user.username)
         
         return templates.TemplateResponse("transfers.html", {
             "request": request,
@@ -530,7 +539,9 @@ async def transfers_page(request: Request):
             "user_home": user_home,
             "transfers": transfers,
             "balance": balance,
-            "available_users": available_users
+            "available_users": eligible_recipients,
+            "contribution_stats": contribution_stats,
+            "can_transfer": can_transfer
         })
     except:
         return RedirectResponse(url="/login")
@@ -558,7 +569,7 @@ async def create_transfer(
         
         # Validate amount
         if amount <= 0:
-            return RedirectResponse(url="/transfers?error=Invalid amount", status_code=303)
+            return RedirectResponse(url="/transfers?error=Transfer amount must be positive", status_code=303)
         
         transfer_data = TransferCreate(
             recipient_username=recipient_username,
@@ -568,7 +579,7 @@ async def create_transfer(
         
         try:
             await db.create_transfer(user.username, transfer_data)
-            return RedirectResponse(url="/transfers?message=Transfer completed successfully", status_code=303)
+            return RedirectResponse(url="/transfers?message=Fund transfer completed successfully - contributions adjusted", status_code=303)
         except ValueError as e:
             return RedirectResponse(url=f"/transfers?error={str(e)}", status_code=303)
         
@@ -768,7 +779,7 @@ async def approve_join_request(
     except Exception as e:
         return RedirectResponse(url=f"/home?error={str(e)}", status_code=303)
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="127.0.0.1", port=8000)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 

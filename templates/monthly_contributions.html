@@ -45,38 +45,38 @@
     <!-- Monthly Summary -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
-            <div class="stats-card bg-primary text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center p-3">
-                    <i class="fas fa-chart-line fa-2x mb-2 opacity-75"></i>
-                    <h5 class="small fw-normal opacity-75 mb-1">Total Contributions</h5>
-                    <h3 class="mb-0">{{ monthly_summary.total_count }}</h3>
+                    <i class="fas fa-chart-line fa-2x mb-2 text-primary"></i>
+                    <h5 class="small fw-normal text-muted mb-1">Total Contributions</h5>
+                    <h3 class="mb-0 text-dark">{{ monthly_summary.total_count }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="stats-card bg-success text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center p-3">
-                    <i class="fas fa-dollar-sign fa-2x mb-2 opacity-75"></i>
-                    <h5 class="small fw-normal opacity-75 mb-1">Total Amount</h5>
-                    <h3 class="mb-0">${{ "%.0f"|format(monthly_summary.total_amount) }}</h3>
+                    <i class="fas fa-dollar-sign fa-2x mb-2 text-success"></i>
+                    <h5 class="small fw-normal text-muted mb-1">Total Amount</h5>
+                    <h3 class="mb-0 text-dark">${{ "%.0f"|format(monthly_summary.total_amount) }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="stats-card bg-info text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center p-3">
-                    <i class="fas fa-users fa-2x mb-2 opacity-75"></i>
-                    <h5 class="small fw-normal opacity-75 mb-1">Contributors</h5>
-                    <h3 class="mb-0">{{ monthly_summary.contributions_by_user|length }}</h3>
+                    <i class="fas fa-users fa-2x mb-2 text-info"></i>
+                    <h5 class="small fw-normal text-muted mb-1">Contributors</h5>
+                    <h3 class="mb-0 text-dark">{{ monthly_summary.contributions_by_user|length }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="stats-card bg-warning text-white">
+            <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center p-3">
-                    <i class="fas fa-shopping-cart fa-2x mb-2 opacity-75"></i>
-                    <h5 class="small fw-normal opacity-75 mb-1">Products</h5>
-                    <h3 class="mb-0">{{ monthly_summary.contributions_by_product|length }}</h3>
+                    <i class="fas fa-shopping-cart fa-2x mb-2 text-warning"></i>
+                    <h5 class="small fw-normal text-muted mb-1">Products</h5>
+                    <h3 class="mb-0 text-dark">{{ monthly_summary.contributions_by_product|length }}</h3>
                 </div>
             </div>
         </div>
