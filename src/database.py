@@ -909,25 +909,9 @@ class Database:
         if sender_username == transfer_data.recipient_username:
             raise ValueError("Cannot transfer to yourself")
         
-        # Get contribution stats to validate the transfer logic
-        sender_stats = await self.get_contribution_to_average(sender_username)
-        recipient_stats = await self.get_contribution_to_average(transfer_data.recipient_username)
-        
-        # Validate that sender has lower contributions than average
-        if sender_stats["is_above_average"]:
-            raise ValueError("Only users with below-average contributions can give money to others")
-        
-        # Validate that recipient has higher than average contributions
-        if not recipient_stats["is_above_average"]:
-            raise ValueError("You can only transfer money to users with above-average contributions")
-        
         # Validate transfer amount
         if transfer_data.amount <= 0:
             raise ValueError("Transfer amount must be positive")
-        
-        # Check if sender can afford this without going into negative contribution
-        if sender_stats["user_total"] < transfer_data.amount:
-            raise ValueError("Cannot transfer more than your total contributions")
         
         # Create the transfer record
         transfer_dict = {
@@ -1308,7 +1292,7 @@ class Database:
             return False
 
     async def get_eligible_transfer_recipients(self, sender_username: str) -> List[dict]:
-        """Get users in the same home who are eligible to receive fund transfers (above-average contributors)"""
+        """Get users in the same home who are eligible to receive fund transfers (all home members except sender)"""
         db = await self.get_database()
         
         try:
@@ -1321,27 +1305,13 @@ class Database:
             if not home:
                 return []
             
-            # Get home average contribution
-            home_total_pipeline = [
-                {"$match": {"home_id": sender.home_id}},
-                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-            ]
-            
-            home_total_result = []
-            async for doc in db.contributions.aggregate(home_total_pipeline):
-                home_total_result.append(doc)
-            home_total = home_total_result[0]["total"] if home_total_result else 0
-            
-            home_members_count = len(home.members)
-            average_contribution = home_total / home_members_count if home_members_count > 0 else 0
-            
-            # Get eligible recipients (excluding sender)
+            # Get all home members (excluding sender)
             eligible_recipients = []
             for member_username in home.members:
                 if member_username == sender_username:
                     continue
                 
-                # Get member's total contribution
+                # Get member's total contribution for display purposes
                 member_total_pipeline = [
                     {"$match": {"username": member_username, "home_id": sender.home_id}},
                     {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
@@ -1352,19 +1322,17 @@ class Database:
                     member_total_result.append(doc)
                 member_total = member_total_result[0]["total"] if member_total_result else 0
                 
-                # Only include if above average
-                if member_total >= average_contribution:
-                    member = await self.get_user(member_username)
-                    if member:
-                        eligible_recipients.append({
-                            "username": member_username,
-                            "full_name": member.full_name,
-                            "total_contribution": member_total,
-                            "above_average_by": member_total - average_contribution
-                        })
+                # Include all home members regardless of contribution level
+                member = await self.get_user(member_username)
+                if member:
+                    eligible_recipients.append({
+                        "username": member_username,
+                        "full_name": member.full_name,
+                        "total_contribution": member_total
+                    })
             
-            # Sort by contribution amount (highest first)
-            eligible_recipients.sort(key=lambda x: x["total_contribution"], reverse=True)
+            # Sort by full name for easy selection
+            eligible_recipients.sort(key=lambda x: x["full_name"])
             return eligible_recipients
             
         except Exception as e:

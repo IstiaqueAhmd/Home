@@ -60,12 +60,18 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <h6 class="card-title mb-2 fs-6 fw-normal text-muted">Total Amount</h6>
-                        <h2 class="mb-1 fw-bold fs-4 fs-lg-2 text-dark">${{ "%.0f"|format(contributions|map(attribute='amount')|sum) }}</h2>
-                        <small class="text-muted d-none d-sm-block">Your contributions</small>
+                        {% if user_home and contribution_to_average %}
+                        <h6 class="card-title mb-2 fs-6 fw-normal text-muted">House Total</h6>
+                        <h2 class="mb-1 fw-bold fs-4 fs-lg-2 text-dark">${{ "%.0f"|format(contribution_to_average.home_total) }}</h2>
+                        <small class="text-muted d-none d-sm-block">All members combined</small>
+                        {% else %}
+                        <h6 class="card-title mb-2 fs-6 fw-normal text-muted">House Total</h6>
+                        <h2 class="mb-1 fw-bold fs-4 fs-lg-2 text-dark">$0</h2>
+                        <small class="text-muted d-none d-sm-block">Join a home to see total</small>
+                        {% endif %}
                     </div>
                     <div class="align-self-start">
-                        <i class="fas fa-dollar-sign fa-2x fa-lg-3x text-success"></i>
+                        <i class="fas fa-home fa-2x fa-lg-3x text-success"></i>
                     </div>
                 </div>
             </div>
@@ -78,8 +84,16 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="card-title mb-2 fs-6 fw-normal text-muted">Your Total</h6>
-                        <h2 class="mb-1 fw-bold fs-4 fs-lg-2 text-dark">${{ "%.0f"|format(user_balance) }}</h2>
-                        <small class="text-muted d-none d-sm-block">Total contributions</small>
+                        <h2 class="mb-1 fw-bold fs-4 fs-lg-2 {% if user_balance < 0 %}text-danger{% else %}text-dark{% endif %}">
+                            ${{ "%.0f"|format(user_balance) }}
+                        </h2>
+                        <small class="text-muted d-none d-sm-block">
+                            {% if user_balance < 0 %}
+                            Negative balance (owe household)
+                            {% else %}
+                            Total contributions
+                            {% endif %}
+                        </small>
                     </div>
                     <div class="align-self-start">
                         <i class="fas fa-wallet fa-2x fa-lg-3x text-warning"></i>

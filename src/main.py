@@ -522,13 +522,13 @@ async def transfers_page(request: Request):
         # Get user's current balance (total contributions)
         balance = await db.get_user_balance(user.username)
         
-        # Get user's contribution statistics
+        # Get user's contribution statistics for display
         contribution_stats = await db.get_contribution_to_average(user.username)
         
-        # Check if user can make transfers (below average contributors only)
-        can_transfer = not contribution_stats["is_above_average"] and contribution_stats["user_total"] > 0
+        # Anyone in a home can make transfers to other home members
+        can_transfer = user_home is not None
         
-        # Get eligible recipients (above-average contributors)
+        # Get eligible recipients (all home members except sender)
         eligible_recipients = []
         if can_transfer:
             eligible_recipients = await db.get_eligible_transfer_recipients(user.username)

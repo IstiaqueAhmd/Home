@@ -66,8 +66,16 @@
                     <div class="row text-center g-4">
                         <div class="col-6 col-md-3">
                             <div class="d-flex flex-column">
-                                <span class="fs-4 fw-bold text-primary">${{ "%.2f"|format(contribution_stats.user_total) }}</span>
-                                <small class="text-muted">Your Total</small>
+                                <span class="fs-4 fw-bold {% if contribution_stats.user_total < 0 %}text-danger{% else %}text-primary{% endif %}">
+                                    ${{ "%.2f"|format(contribution_stats.user_total) }}
+                                </span>
+                                <small class="text-muted">
+                                    {% if contribution_stats.user_total < 0 %}
+                                    Your Balance (Negative)
+                                    {% else %}
+                                    Your Total
+                                    {% endif %}
+                                </small>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
@@ -109,8 +117,8 @@
                     <div>
                         <h6 class="fw-semibold mb-2">How Fund Transfers Work</h6>
                         <p class="mb-0 small">
-                            When there's nothing to buy for the house, members with lower contributions can transfer money to those who have contributed above average. 
-                            This increases your contribution total and decreases the recipient's total, helping to balance household contributions.
+                            Any household member can transfer money to any other household member to help balance contributions or reimburse expenses. 
+                            This increases your contribution total and decreases the recipient's total.
                         </p>
                     </div>
                 </div>
@@ -133,14 +141,13 @@
                     <form method="post" action="/transfer" class="needs-validation" novalidate>
                         <div class="mb-4">
                             <label for="recipient_username" class="form-label fw-semibold mb-3">
-                                Choose Recipient (Above-Average Contributors)
+                                Choose Recipient (Household Members)
                             </label>
                             <select class="form-select form-select-lg" id="recipient_username" name="recipient_username" required>
                                 <option value="">Select a house member...</option>
                                 {% for available_user in available_users %}
                                 <option value="{{ available_user.username }}">
-                                    {{ available_user.full_name }} - ${{ "%.2f"|format(available_user.total_contribution) }}
-                                    (+${{ "%.2f"|format(available_user.above_average_by) }} above average)
+                                    {{ available_user.full_name }} - ${{ "%.2f"|format(available_user.total_contribution) }} total contributions
                                 </option>
                                 {% endfor %}
                             </select>
@@ -155,11 +162,11 @@
                                     <i class="fas fa-dollar-sign text-success"></i>
                                 </span>
                                 <input type="number" class="form-control border-start-0" id="amount" name="amount" 
-                                       step="0.01" min="0.01" max="{{ contribution_stats.user_total }}" required 
+                                       step="0.01" min="0.01" required 
                                        placeholder="0.00">
                             </div>
                             <small class="form-text text-muted mt-2">
-                                Maximum: ${{ "%.2f"|format(contribution_stats.user_total) }} (your total contributions)
+                                Your current contributions: ${{ "%.2f"|format(contribution_stats.user_total) }}. You can transfer any amount (going negative is allowed).
                             </small>
                         </div>
                         
@@ -186,29 +193,11 @@
         <div class="col-12 col-md-8 mx-auto">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center py-5">
-                    {% if contribution_stats and contribution_stats.is_above_average %}
-                    <i class="fas fa-trophy fa-3x text-success mb-4"></i>
-                    <h5 class="fw-semibold mb-3">Great job!</h5>
-                    <p class="text-muted mb-0">
-                        You've contributed above the household average. You're not eligible to send fund transfers, 
-                        but you may receive them from other members.
-                    </p>
-                    {% elif contribution_stats and contribution_stats.user_total <= 0 %}
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-4"></i>
-                    <h5 class="fw-semibold mb-3">No Contributions Yet</h5>
-                    <p class="text-muted mb-4">
-                        You need to make some contributions before you can send fund transfers.
-                    </p>
-                    <a href="/dashboard" class="btn btn-primary">
-                        <i class="fas fa-plus me-2"></i>Add Contribution
-                    </a>
-                    {% else %}
                     <i class="fas fa-users fa-3x text-muted mb-4"></i>
-                    <h5 class="fw-semibold mb-3">No Eligible Recipients</h5>
+                    <h5 class="fw-semibold mb-3">No Other Household Members</h5>
                     <p class="text-muted mb-0">
-                        There are no household members with above-average contributions available for fund transfers.
+                        There are no other household members available for fund transfers.
                     </p>
-                    {% endif %}
                 </div>
             </div>
         </div>
