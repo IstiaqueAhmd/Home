@@ -133,68 +133,12 @@
         </div>
     </div>
 
-    <!-- Contribution to Average Alert - Only show if user has a home and there are multiple members -->
-    {% if user_home and contribution_to_average.home_members_count > 1 %}
-    <div class="row mb-4">
-        <div class="col-12">
-            {% if contribution_to_average.is_above_average %}
-            <!-- User is above average -->
-            <div class="card border-0 shadow-sm bg-white">
-                <div class="card-body text-center py-4">
-                    <h5 class="text-dark mb-3">
-                        <i class="fas fa-star me-2 text-success"></i>Great Work!
-                    </h5>
-                    <p class="text-muted mb-3">
-                        You've contributed <strong class="text-success">${{ "%.0f"|format(contribution_to_average.user_total) }}</strong>, 
-                        which is <strong class="text-success">${{ "%.0f"|format(contribution_to_average.user_total - contribution_to_average.average_contribution) }}</strong> 
-                        above the house average of <strong class="text-dark">${{ "%.0f"|format(contribution_to_average.average_contribution) }}</strong>
-                    </p>
-                    <div class="small text-muted">
-                        <i class="fas fa-users me-1 text-primary"></i>House average based on {{ contribution_to_average.home_members_count }} members
-                    </div>
-                </div>
-            </div>
-            {% else %}
-            <!-- User is below average -->
-            <div class="card border-0 shadow-sm bg-white">
-                <div class="card-body text-center py-4">
-                    <h5 class="text-dark mb-3">
-                        <i class="fas fa-chart-line me-2 text-warning"></i>Catch Up Goal
-                    </h5>
-                    <p class="text-muted mb-3">
-                        You need <strong class="text-warning">${{ "%.0f"|format(contribution_to_average.amount_to_reach_average) }}</strong> 
-                        more to reach the house average of <strong class="text-dark">${{ "%.0f"|format(contribution_to_average.average_contribution) }}</strong>
-                    </p>
-                    <p class="small text-muted mb-4">
-                        Your current total: <strong class="text-primary">${{ "%.0f"|format(contribution_to_average.user_total) }}</strong> • 
-                        House average: <strong class="text-dark">${{ "%.0f"|format(contribution_to_average.average_contribution) }}</strong>
-                    </p>
-                    <div class="progress mb-3" style="height: 8px;">
-                        {% set progress_percentage = (contribution_to_average.user_total / contribution_to_average.average_contribution * 100)|round(1) if contribution_to_average.average_contribution > 0 else 0 %}
-                        <div class="progress-bar bg-primary" role="progressbar" 
-                             style="width: {{ progress_percentage }}%" 
-                             aria-valuenow="{{ progress_percentage }}" 
-                             aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                    <div class="small text-muted">
-                        <i class="fas fa-users me-1 text-primary"></i>Based on {{ contribution_to_average.home_members_count }} house members
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
-
     <!-- Quick Actions - Add Contribution -->
     {% if user_home %}
     <div class="row mb-4">
         <div class="col-12">
             <div class="card border-0 shadow-sm bg-white">
                 <div class="card-body text-center py-4">
-                    <h5 class="text-dark mb-3">
-                        <i class="fas fa-plus me-2 text-primary"></i>Quick Action
-                    </h5>
                     <p class="text-muted mb-4">Add a new contribution to track your expenses</p>
                     <button type="button" class="btn btn-primary btn-lg px-4" data-bs-toggle="modal" data-bs-target="#addContributionModal">
                         <i class="fas fa-plus me-2"></i>Add Contribution
