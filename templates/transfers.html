@@ -129,59 +129,65 @@
     <!-- Transfer Form -->
     {% if can_transfer and available_users %}
     <div class="row mb-5">
-        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+        <div class="col-12 col-md-10 mx-auto">
             <div class="card border-0 shadow">
-                <div class="card-header bg-white border-0 text-center py-4">
-                    <h4 class="mb-0 fw-semibold">
-                        <i class="fas fa-hand-holding-usd me-2 text-primary"></i>Send Fund Transfer
-                    </h4>
-                    <p class="text-muted small mb-0 mt-2">Transfer money to balance household contributions</p>
+                <div class="card-header bg-white border-0 py-4">
+                    <div class="text-center">
+                        <h4 class="mb-2 fw-semibold">
+                            <i class="fas fa-hand-holding-usd me-2 text-primary"></i>Send Fund Transfer
+                        </h4>
+                        <p class="text-muted mb-0">Transfer money to balance household contributions</p>
+                    </div>
                 </div>
                 <div class="card-body p-4">
                     <form method="post" action="/transfer" class="needs-validation" novalidate>
-                        <div class="mb-4">
-                            <label for="recipient_username" class="form-label fw-semibold mb-3">
-                                Choose Recipient (Household Members)
-                            </label>
-                            <select class="form-select form-select-lg" id="recipient_username" name="recipient_username" required>
-                                <option value="">Select a house member...</option>
-                                {% for available_user in available_users %}
-                                <option value="{{ available_user.username }}">
-                                    {{ available_user.full_name }} - ${{ "%.2f"|format(available_user.total_contribution) }} total contributions
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="amount" class="form-label fw-semibold mb-3">
-                                Amount to Transfer
-                            </label>
-                            <div class="input-group input-group-lg">
-                                <span class="input-group-text bg-light border-end-0">
-                                    <i class="fas fa-dollar-sign text-success"></i>
-                                </span>
-                                <input type="number" class="form-control border-start-0" id="amount" name="amount" 
-                                       step="0.01" min="0.01" required 
-                                       placeholder="0.00">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-6">
+                                <label for="recipient_username" class="form-label fw-semibold mb-3">
+                                    <i class="fas fa-user me-2 text-muted"></i>Choose Recipient (Household Members)
+                                </label>
+                                <select class="form-select form-select-lg" id="recipient_username" name="recipient_username" required>
+                                    <option value="">Select a house member...</option>
+                                    {% for available_user in available_users %}
+                                    <option value="{{ available_user.username }}">
+                                        {{ available_user.full_name }} - ${{ "%.2f"|format(available_user.total_contribution) }} total contributions
+                                    </option>
+                                    {% endfor %}
+                                </select>
                             </div>
-                            <small class="form-text text-muted mt-2">
-                                Your current contributions: ${{ "%.2f"|format(contribution_stats.user_total) }}. You can transfer any amount (going negative is allowed).
-                            </small>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="description" class="form-label fw-semibold mb-3">
-                                Description <span class="text-muted fw-normal">(Optional)</span>
-                            </label>
-                            <textarea class="form-control" id="description" name="description" rows="3" 
-                                      placeholder="Purpose of this fund transfer..."></textarea>
-                        </div>
-                        
-                        <div class="d-grid mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg py-3">
-                                <i class="fas fa-hand-holding-usd me-2"></i>Send Fund Transfer
-                            </button>
+                            
+                            <div class="col-12 col-lg-6">
+                                <label for="amount" class="form-label fw-semibold mb-3">
+                                    <i class="fas fa-dollar-sign me-2 text-muted"></i>Amount to Transfer
+                                </label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-light border-end-0">
+                                        <i class="fas fa-dollar-sign text-success"></i>
+                                    </span>
+                                    <input type="number" class="form-control border-start-0" id="amount" name="amount" 
+                                           step="0.01" min="0.01" required 
+                                           placeholder="0.00">
+                                </div>
+                                <small class="form-text text-muted mt-2">
+                                    Your current contributions: ${{ "%.2f"|format(contribution_stats.user_total) }}. You can transfer any amount (going negative is allowed).
+                                </small>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label for="description" class="form-label fw-semibold mb-3">
+                                    <i class="fas fa-comment me-2 text-muted"></i>Description <span class="text-muted fw-normal">(Optional)</span>
+                                </label>
+                                <textarea class="form-control" id="description" name="description" rows="3" 
+                                          placeholder="Purpose of this fund transfer..."></textarea>
+                            </div>
+                            
+                            <div class="col-12">
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary btn-lg py-3">
+                                        <i class="fas fa-hand-holding-usd me-2"></i>Send Fund Transfer
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
