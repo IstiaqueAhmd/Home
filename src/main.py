@@ -11,9 +11,15 @@ import os
 import logging
 from dotenv import load_dotenv
 
-from database import Database
-from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
-from auth import AuthManager
+try:
+    from .database import Database
+    from .models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
+    from .auth import AuthManager
+except ImportError:
+    # Fallback for local development
+    from database import Database
+    from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
+    from auth import AuthManager
 
 # Load environment variables
 load_dotenv()
@@ -133,14 +139,51 @@ async def health_check():
         # Test database connection
         database = await db.get_database()
         # Simple test query to check if database is accessible
-        await database.users.count_documents({})
+        test_query = "SELECT COUNT(*) as count FROM users"
+        result = await database.fetch_one(test_query)
         health_status["database"] = "connected"
+        health_status["user_count"] = result["count"] if result else 0
     except Exception as e:
         health_status["database"] = "disconnected"
         health_status["database_error"] = str(e)
         health_status["status"] = "degraded"
     
     return health_status
+
+@app.get("/debug")
+async def debug_info():
+    """Debug endpoint to check environment and database"""
+    debug_info = {
+        "environment": {
+            "postgres_url_set": bool(os.getenv("POSTGRES_URL")),
+            "secret_key_set": bool(os.getenv("SECRET_KEY")),
+            "algorithm": os.getenv("ALGORITHM", "not_set"),
+            "token_expire_minutes": os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "not_set")
+        },
+        "instances": {
+            "db_initialized": db is not None,
+            "auth_manager_initialized": auth_manager is not None
+        }
+    }
+    
+    if db is not None:
+        try:
+            database = await db.get_database()
+            test_query = "SELECT COUNT(*) as count FROM users"
+            result = await database.fetch_one(test_query)
+            debug_info["database"] = {
+                "connection": "success",
+                "user_count": result["count"] if result else 0
+            }
+        except Exception as e:
+            debug_info["database"] = {
+                "connection": "failed",
+                "error": str(e)
+            }
+    else:
+        debug_info["database"] = {"connection": "not_initialized"}
+    
+    return debug_info
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -209,7 +252,16 @@ async def login(
 ):
     try:
         logger.info(f"Login attempt for username: {username}")
+        logger.info(f"Database instance exists: {db is not None}")
+        logger.info(f"Auth manager exists: {auth_manager is not None}")
+        
+        if db is None:
+            logger.error("Database instance is None")
+            return RedirectResponse(url="/login?error=Database connection error", status_code=303)
+            
         user = await db.authenticate_user(username, password)
+        logger.info(f"Authentication result: {user is not None}")
+        
         if not user:
             logger.warning(f"Login failed for username: {username}")
             return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
@@ -220,7 +272,15 @@ async def login(
         )
         
         response = RedirectResponse(url="/dashboard", status_code=303)
-        response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+        # Set cookie with secure settings for production
+        cookie_secure = os.getenv("ENVIRONMENT") == "production"
+        response.set_cookie(
+            key="access_token", 
+            value=f"Bearer {access_token}", 
+            httponly=True,
+            secure=cookie_secure,
+            samesite="lax"
+        )
         logger.info(f"Login successful for username: {username}")
         return response
     except Exception as e:

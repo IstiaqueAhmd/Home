@@ -3,8 +3,13 @@ import asyncio
 from databases import Database as AsyncDatabase
 import asyncpg
 from typing import Optional, List
-from models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
-from auth import AuthManager
+try:
+    from .models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
+    from .auth import AuthManager
+except ImportError:
+    # Fallback for local development
+    from models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
+    from auth import AuthManager
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -219,11 +224,26 @@ class Database:
         return None
     
     async def authenticate_user(self, username: str, password: str) -> Optional[UserInDB]:
+        print(f"DEBUG: Authentication attempt for username: {username}")
         user = await self.get_user(username)
+        
         if not user:
+            print(f"DEBUG: User {username} not found in database")
             return None
-        if not self.auth_manager.verify_password(password, user.hashed_password):
+            
+        print(f"DEBUG: User {username} found in database")
+        print(f"DEBUG: Stored hash length: {len(user.hashed_password) if user.hashed_password else 0}")
+        print(f"DEBUG: Input password length: {len(password)}")
+        
+        # Verify password
+        password_valid = self.auth_manager.verify_password(password, user.hashed_password)
+        print(f"DEBUG: Password verification result: {password_valid}")
+        
+        if not password_valid:
+            print(f"DEBUG: Password verification failed for user {username}")
             return None
+            
+        print(f"DEBUG: Authentication successful for user {username}")
         return user
     
     async def create_contribution(self, username: str, contribution_data: dict) -> Contribution:
