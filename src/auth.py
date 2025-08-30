@@ -30,5 +30,19 @@ class AuthManager:
         return encoded_jwt
     
     def verify_token(self, token: str):
-        payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-        return payload
+        print(f"DEBUG: Verifying token with secret key length: {len(self.secret_key)}")
+        print(f"DEBUG: Algorithm: {self.algorithm}")
+        print(f"DEBUG: Token length: {len(token)}")
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            print(f"DEBUG: Token verification successful, payload: {payload}")
+            return payload
+        except jwt.ExpiredSignatureError:
+            print("DEBUG: Token has expired")
+            raise
+        except jwt.InvalidTokenError as e:
+            print(f"DEBUG: Invalid token error: {str(e)}")
+            raise
+        except Exception as e:
+            print(f"DEBUG: Token verification error: {str(e)}")
+            raise

@@ -11,9 +11,15 @@ import os
 import logging
 from dotenv import load_dotenv
 
-from database import Database
-from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
-from auth import AuthManager
+try:
+    from .database import Database
+    from .models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
+    from .auth import AuthManager
+except ImportError:
+    # Fallback for local development
+    from database import Database
+    from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
+    from auth import AuthManager
 
 # Load environment variables
 load_dotenv()
@@ -89,15 +95,27 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        logger.info("Verifying token...")
         payload = auth_manager.verify_token(token)
+        logger.info(f"Token payload: {payload}")
+        
         username: str = payload.get("sub")
+        logger.info(f"Username from token: {username}")
+        
         if username is None:
+            logger.warning("No username in token payload")
             raise credentials_exception
+            
         user = await db.get_user(username)
+        logger.info(f"User retrieved from database: {user.username if user else 'None'}")
+        
         if user is None:
+            logger.warning(f"User {username} not found in database")
             raise credentials_exception
+            
         return user
-    except:
+    except Exception as e:
+        logger.error(f"Token verification error: {str(e)}", exc_info=True)
         raise credentials_exception
 
 @app.get("/", response_class=HTMLResponse)
@@ -128,14 +146,93 @@ async def health_check():
         # Test database connection
         database = await db.get_database()
         # Simple test query to check if database is accessible
-        await database.users.count_documents({})
+        test_query = "SELECT COUNT(*) as count FROM users"
+        result = await database.fetch_one(test_query)
         health_status["database"] = "connected"
+        health_status["user_count"] = result["count"] if result else 0
     except Exception as e:
         health_status["database"] = "disconnected"
         health_status["database_error"] = str(e)
         health_status["status"] = "degraded"
     
     return health_status
+
+@app.get("/debug")
+async def debug_info():
+    """Debug endpoint to check environment and database"""
+    debug_info = {
+        "environment": {
+            "postgres_url_set": bool(os.getenv("POSTGRES_URL")),
+            "secret_key_set": bool(os.getenv("SECRET_KEY")),
+            "algorithm": os.getenv("ALGORITHM", "not_set"),
+            "token_expire_minutes": os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "not_set"),
+            "environment": os.getenv("ENVIRONMENT", "not_set")
+        },
+        "instances": {
+            "db_initialized": db is not None,
+            "auth_manager_initialized": auth_manager is not None
+        }
+    }
+    
+    if db is not None:
+        try:
+            database = await db.get_database()
+            test_query = "SELECT COUNT(*) as count FROM users"
+            result = await database.fetch_one(test_query)
+            debug_info["database"] = {
+                "connection": "success",
+                "user_count": result["count"] if result else 0
+            }
+        except Exception as e:
+            debug_info["database"] = {
+                "connection": "failed",
+                "error": str(e)
+            }
+    else:
+        debug_info["database"] = {"connection": "not_initialized"}
+    
+    return debug_info
+
+@app.get("/session-debug")
+async def session_debug(request: Request):
+    """Debug session and cookie information"""
+    cookies = dict(request.cookies)
+    
+    session_info = {
+        "cookies": {k: v[:20] + "..." if len(str(v)) > 20 else v for k, v in cookies.items()},
+        "headers": dict(request.headers),
+        "url": str(request.url)
+    }
+    
+    # Try to get user if token exists
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            if token.startswith("Bearer "):
+                clean_token = token[7:]
+            else:
+                clean_token = token
+                
+            payload = auth_manager.verify_token(clean_token)
+            username = payload.get("sub")
+            user = await db.get_user(username) if username else None
+            
+            session_info["token_info"] = {
+                "token_exists": True,
+                "token_format": "Bearer " if token.startswith("Bearer ") else "plain",
+                "payload": payload,
+                "user_found": user is not None,
+                "username": username
+            }
+        except Exception as e:
+            session_info["token_info"] = {
+                "token_exists": True,
+                "error": str(e)
+            }
+    else:
+        session_info["token_info"] = {"token_exists": False}
+    
+    return session_info
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -204,7 +301,16 @@ async def login(
 ):
     try:
         logger.info(f"Login attempt for username: {username}")
+        logger.info(f"Database instance exists: {db is not None}")
+        logger.info(f"Auth manager exists: {auth_manager is not None}")
+        
+        if db is None:
+            logger.error("Database instance is None")
+            return RedirectResponse(url="/login?error=Database connection error", status_code=303)
+            
         user = await db.authenticate_user(username, password)
+        logger.info(f"Authentication result: {user is not None}")
+        
         if not user:
             logger.warning(f"Login failed for username: {username}")
             return RedirectResponse(url="/login?error=Incorrect username or password", status_code=303)
@@ -215,7 +321,23 @@ async def login(
         )
         
         response = RedirectResponse(url="/dashboard", status_code=303)
-        response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+        # Set cookie with secure settings for production
+        # Check if we're on Vercel or HTTPS by checking the request
+        is_production = (
+            os.getenv("ENVIRONMENT") == "production" or 
+            os.getenv("VERCEL") == "1" or
+            "vercel.app" in os.getenv("VERCEL_URL", "")
+        )
+        
+        logger.info(f"Setting cookie with secure={is_production}")
+        response.set_cookie(
+            key="access_token", 
+            value=f"Bearer {access_token}", 
+            httponly=True,
+            secure=is_production,
+            samesite="lax",
+            max_age=30*60  # 30 minutes in seconds
+        )
         logger.info(f"Login successful for username: {username}")
         return response
     except Exception as e:
@@ -224,15 +346,23 @@ async def login(
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_authenticated(request: Request):
+    logger.info("Dashboard endpoint accessed")
     token = request.cookies.get("access_token")
+    logger.info(f"Token from cookie: {token[:20] + '...' if token else 'None'}")
+    
     if not token:
+        logger.warning("No access token found in cookies, redirecting to login")
         return RedirectResponse(url="/login")
     
     try:
         # Remove 'Bearer ' prefix if present
         if token.startswith("Bearer "):
             token = token[7:]
+            logger.info("Removed Bearer prefix from token")
+        
+        logger.info("Attempting to get current user from token")
         user = await get_current_user(token)
+        logger.info(f"Current user retrieved: {user.username if user else 'None'}")
         
         # Get user's home (optional)
         user_home = await db.get_user_home(user.username)
@@ -252,6 +382,21 @@ async def dashboard_authenticated(request: Request):
         
         # Get contribution to average data
         contribution_to_average = await db.get_contribution_to_average(user.username)
+        
+        logger.info(f"Dashboard data prepared for user: {user.username}")
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request, 
+            "user": user,
+            "user_home": user_home,
+            "contributions": contributions,
+            "user_balance": user_balance,
+            "current_month_summary": current_month_summary,
+            "current_month_name": datetime.now().strftime("%B") if user_home else None,
+            "contribution_to_average": contribution_to_average
+        })
+    except Exception as e:
+        logger.error(f"Dashboard error: {str(e)}", exc_info=True)
+        return RedirectResponse(url="/login")
         
         return templates.TemplateResponse("dashboard.html", {
             "request": request, 
