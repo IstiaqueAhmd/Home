@@ -1,6 +1,5 @@
 import os
 import asyncio
-from databases import Database as AsyncDatabase
 import asyncpg
 from typing import Optional, List
 try:
@@ -23,7 +22,6 @@ load_dotenv()
 class Database:
     def __init__(self):
         self.postgres_url = os.getenv("POSTGRES_URL")
-        self.database = None
         self.auth_manager = AuthManager()
         
         # Debug: Print loaded environment variables (without password)
@@ -34,14 +32,28 @@ class Database:
             safe_url = self.postgres_url.replace(self.postgres_url.split('://')[1].split('@')[0], "***:***")
             print(f"PostgreSQL URL loaded: {safe_url}")
     
-    async def connect_to_postgres(self):
-        """Connect to PostgreSQL database"""
-        if not self.postgres_url:
-            raise ValueError("PostgreSQL connection URL not set")
-        
+    async def get_connection(self):
+        """Get a direct asyncpg connection - better for serverless"""
+        return await asyncpg.connect(self.postgres_url)
+    
+    async def execute_query(self, query: str, *args, fetch_one=False, fetch_all=False):
+        """Execute a query with proper connection management"""
+        conn = await self.get_connection()
         try:
-            self.database = AsyncDatabase(self.postgres_url)
-            await self.database.connect()
+            if fetch_one:
+                return await conn.fetchrow(query, *args)
+            elif fetch_all:
+                return await conn.fetch(query, *args)
+            else:
+                return await conn.execute(query, *args)
+        finally:
+            await conn.close()
+    
+    async def connect_to_postgres(self):
+        """Test PostgreSQL connection and create tables"""
+        try:
+            conn = await self.get_connection()
+            await conn.close()
             print("PostgreSQL connection successful")
             
             # Create tables if they don't exist
@@ -52,17 +64,8 @@ class Database:
             raise e
 
     async def close_postgres_connection(self):
-        if self.database:
-            await self.database.disconnect()
-    
-    async def get_database(self):
-        try:
-            if self.database is None:
-                await self.connect_to_postgres()
-            return self.database
-        except Exception as e:
-            print(f"Database access error: {str(e)}")
-            raise e
+        """No-op for direct connections"""
+        pass
     
     async def create_tables(self):
         """Create all required tables"""
@@ -188,9 +191,8 @@ class Database:
             raise ValueError("User already exists")
     
     async def get_user(self, username: str) -> Optional[UserInDB]:
-        db = await self.get_database()
-        query = "SELECT * FROM users WHERE username = :username"
-        result = await db.fetch_one(query, {"username": username})
+        query = "SELECT * FROM users WHERE username = $1"
+        result = await self.execute_query(query, username, fetch_one=True)
         
         if result:
             return UserInDB(
