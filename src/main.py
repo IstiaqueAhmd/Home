@@ -11,9 +11,9 @@ import os
 import logging
 from dotenv import load_dotenv
 
-from .database import Database
-from .models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
-from .auth import AuthManager
+from database import Database
+from models import User, UserCreate, UserInDB, Token, Contribution, Transfer, TransferCreate, Home, HomeCreate
+from auth import AuthManager
 
 # Load environment variables
 load_dotenv()
