@@ -80,16 +80,11 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Mount static files - use relative path for Vercel
-import os
-# Get the directory of the current file, then go up one level to get the project root
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-static_dir = os.path.join(project_root, "static")
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Templates - use relative path for Vercel  
-templates_dir = os.path.join(project_root, "templates")
-templates = Jinja2Templates(directory=templates_dir)
+# Templates
+templates = Jinja2Templates(directory="templates")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
