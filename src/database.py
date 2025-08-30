@@ -1,8 +1,7 @@
 import os
-import ssl
 import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import DuplicateKeyError
+from databases import Database as AsyncDatabase
+import asyncpg
 from typing import Optional, List
 from models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
 from auth import AuthManager
@@ -18,103 +17,205 @@ load_dotenv()
 
 class Database:
     def __init__(self):
-        self.mongodb_url = os.getenv("MONGODB_URL")
-        self.database_name = os.getenv("DATABASE_NAME")
-        self.client = None
+        self.postgres_url = os.getenv("POSTGRES_URL")
         self.database = None
         self.auth_manager = AuthManager()
         
         # Debug: Print loaded environment variables (without password)
-        if not self.mongodb_url:
-            print("ERROR: MONGODB_URL environment variable is not set")
+        if not self.postgres_url:
+            print("ERROR: POSTGRES_URL environment variable is not set")
         else:
             # Print URL without password for debugging
-            safe_url = self.mongodb_url.replace(self.mongodb_url.split('://')[1].split('@')[0], "***:***")
-            print(f"MongoDB URL loaded: {safe_url}")
-            
-        if not self.database_name:
-            print("ERROR: DATABASE_NAME environment variable is not set")
-        else:
-            print(f"Database name loaded: {self.database_name}")
-        
+            safe_url = self.postgres_url.replace(self.postgres_url.split('://')[1].split('@')[0], "***:***")
+            print(f"PostgreSQL URL loaded: {safe_url}")
     
-    async def connect_to_mongo(self):
-        """Simplified connection with better SSL handling"""
-        if not self.mongodb_url or not self.database_name:
-            raise ValueError("MongoDB connection variables not set")
+    async def connect_to_postgres(self):
+        """Connect to PostgreSQL database"""
+        if not self.postgres_url:
+            raise ValueError("PostgreSQL connection URL not set")
         
         try:
-            # Use a clean URL without explicit TLS parameter
-            clean_url = self.mongodb_url.replace("&tls=true", "").replace("?tls=true", "")
+            self.database = AsyncDatabase(self.postgres_url)
+            await self.database.connect()
+            print("PostgreSQL connection successful")
             
-            # Simple connection with SSL auto-detection
-            self.client = AsyncIOMotorClient(
-                clean_url,
-                serverSelectionTimeoutMS=30000,
-                connectTimeoutMS=30000,
-                socketTimeoutMS=30000
-            )
-            
-            self.database = self.client[self.database_name]
-            
-            # Test connection
-            await asyncio.wait_for(
-                self.client.admin.command('ping'), 
-                timeout=30
-            )
-            print("MongoDB connection successful")
+            # Create tables if they don't exist
+            await self.create_tables()
             
         except Exception as e:
-            print(f"MongoDB connection failed: {str(e)}")
+            print(f"PostgreSQL connection failed: {str(e)}")
             raise e
 
-    async def close_mongo_connection(self):
-        if self.client:
-            self.client.close()
+    async def close_postgres_connection(self):
+        if self.database:
+            await self.database.disconnect()
     
     async def get_database(self):
         try:
             if self.database is None:
-                await self.connect_to_mongo()
+                await self.connect_to_postgres()
             return self.database
         except Exception as e:
             print(f"Database access error: {str(e)}")
             raise e
     
+    async def create_tables(self):
+        """Create all required tables"""
+        db = await self.get_database()
+        
+        # Users table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE NOT NULL,
+                full_name VARCHAR(100) NOT NULL,
+                hashed_password VARCHAR(255) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                home_id INTEGER,
+                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Homes table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS homes (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) UNIQUE NOT NULL,
+                description TEXT,
+                leader_username VARCHAR(50) NOT NULL,
+                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Contributions table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS contributions (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) NOT NULL,
+                home_id INTEGER,
+                product_name VARCHAR(200) NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                description TEXT,
+                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Transfers table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS transfers (
+                id SERIAL PRIMARY KEY,
+                sender_username VARCHAR(50) NOT NULL,
+                recipient_username VARCHAR(50) NOT NULL,
+                home_id INTEGER NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                description TEXT,
+                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Join requests table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS join_requests (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) NOT NULL,
+                home_id INTEGER NOT NULL,
+                home_name VARCHAR(100) NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                date_processed TIMESTAMP
+            )
+        """)
+        
+        # Home members table (for tracking home membership)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS home_members (
+                id SERIAL PRIMARY KEY,
+                home_id INTEGER NOT NULL,
+                username VARCHAR(50) NOT NULL,
+                date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(home_id, username)
+            )
+        """)
+        
+        # Create indexes for better performance
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_contributions_username ON contributions(username)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_contributions_home_id ON contributions(home_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_transfers_sender ON transfers(sender_username)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_transfers_recipient ON transfers(recipient_username)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_join_requests_status ON join_requests(status)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_home_members_home_id ON home_members(home_id)")
+    
     async def create_user(self, user: UserCreate) -> UserInDB:
         db = await self.get_database()
         
         hashed_password = self.auth_manager.get_password_hash(user.password)
-        user_dict = {
-            "username": user.username,
-            "email": user.email,
-            "full_name": user.full_name,
-            "hashed_password": hashed_password,
-            "is_active": True,
-            "date_created": datetime.utcnow()
-        }
         
         try:
-            result = await db.users.insert_one(user_dict)
-            user_dict["_id"] = str(result.inserted_id)
-            return UserInDB(**user_dict)
-        except DuplicateKeyError:
+            query = """
+                INSERT INTO users (username, email, full_name, hashed_password, is_active, date_created)
+                VALUES (:username, :email, :full_name, :hashed_password, :is_active, :date_created)
+                RETURNING id, username, email, full_name, hashed_password, is_active, home_id, date_created
+            """
+            values = {
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name,
+                "hashed_password": hashed_password,
+                "is_active": True,
+                "date_created": datetime.utcnow()
+            }
+            
+            result = await db.fetch_one(query, values)
+            return UserInDB(
+                id=str(result["id"]),
+                username=result["username"],
+                email=result["email"],
+                full_name=result["full_name"],
+                hashed_password=result["hashed_password"],
+                is_active=result["is_active"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                date_created=result["date_created"]
+            )
+        except asyncpg.UniqueViolationError:
             raise ValueError("User already exists")
     
     async def get_user(self, username: str) -> Optional[UserInDB]:
         db = await self.get_database()
-        user_doc = await db.users.find_one({"username": username})
-        if user_doc:
-            user_doc["id"] = str(user_doc["_id"])
-            return UserInDB(**user_doc)
+        query = "SELECT * FROM users WHERE username = :username"
+        result = await db.fetch_one(query, {"username": username})
+        
+        if result:
+            return UserInDB(
+                id=str(result["id"]),
+                username=result["username"],
+                email=result["email"],
+                full_name=result["full_name"],
+                hashed_password=result["hashed_password"],
+                is_active=result["is_active"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                date_created=result["date_created"]
+            )
         return None
     
     async def get_user_by_email(self, email: str) -> Optional[UserInDB]:
         db = await self.get_database()
-        user_doc = await db.users.find_one({"email": email})
-        if user_doc:
-            user_doc["id"] = str(user_doc["_id"])
-            return UserInDB(**user_doc)
+        query = "SELECT * FROM users WHERE email = :email"
+        result = await db.fetch_one(query, {"email": email})
+        
+        if result:
+            return UserInDB(
+                id=str(result["id"]),
+                username=result["username"],
+                email=result["email"],
+                full_name=result["full_name"],
+                hashed_password=result["hashed_password"],
+                is_active=result["is_active"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                date_created=result["date_created"]
+            )
         return None
     
     async def authenticate_user(self, username: str, password: str) -> Optional[UserInDB]:
@@ -133,243 +234,225 @@ class Database:
         if not user or not user.home_id:
             raise ValueError("User must belong to a home to create contributions")
         
-        contribution_dict = {
+        query = """
+            INSERT INTO contributions (username, home_id, product_name, amount, description, date_created)
+            VALUES (:username, :home_id, :product_name, :amount, :description, :date_created)
+            RETURNING id, username, home_id, product_name, amount, description, date_created
+        """
+        values = {
             "username": username,
-            "home_id": user.home_id,
+            "home_id": int(user.home_id),
             "product_name": contribution_data["product_name"],
             "amount": contribution_data["amount"],
             "description": contribution_data.get("description", ""),
             "date_created": datetime.utcnow()
         }
         
-        result = await db.contributions.insert_one(contribution_dict)
-        contribution_dict["id"] = str(result.inserted_id)
-        return Contribution(**contribution_dict)
+        result = await db.fetch_one(query, values)
+        return Contribution(
+            id=str(result["id"]),
+            username=result["username"],
+            home_id=str(result["home_id"]),
+            product_name=result["product_name"],
+            amount=float(result["amount"]),
+            description=result["description"],
+            date_created=result["date_created"]
+        )
     
     async def get_user_contributions(self, username: str) -> List[Contribution]:
         db = await self.get_database()
-        contributions = []
+        query = "SELECT * FROM contributions WHERE username = :username ORDER BY date_created DESC"
+        results = await db.fetch_all(query, {"username": username})
         
-        async for doc in db.contributions.find({"username": username}).sort("date_created", -1):
-            doc["id"] = str(doc["_id"])
-            contributions.append(Contribution(**doc))
+        contributions = []
+        for result in results:
+            contributions.append(Contribution(
+                id=str(result["id"]),
+                username=result["username"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                product_name=result["product_name"],
+                amount=float(result["amount"]),
+                description=result["description"],
+                date_created=result["date_created"]
+            ))
         
         return contributions
 
     async def get_home_contributions(self, home_id: str) -> List[Contribution]:
         db = await self.get_database()
-        contributions = []
+        query = "SELECT * FROM contributions WHERE home_id = :home_id ORDER BY date_created DESC"
+        results = await db.fetch_all(query, {"home_id": int(home_id)})
         
-        async for doc in db.contributions.find({"home_id": home_id}).sort("date_created", -1):
-            doc["id"] = str(doc["_id"])
-            contributions.append(Contribution(**doc))
+        contributions = []
+        for result in results:
+            contributions.append(Contribution(
+                id=str(result["id"]),
+                username=result["username"],
+                home_id=str(result["home_id"]),
+                product_name=result["product_name"],
+                amount=float(result["amount"]),
+                description=result["description"],
+                date_created=result["date_created"]
+            ))
         
         return contributions
     
     async def get_all_contributions(self) -> List[Contribution]:
         db = await self.get_database()
-        contributions = []
+        query = "SELECT * FROM contributions ORDER BY date_created DESC"
+        results = await db.fetch_all(query)
         
-        async for doc in db.contributions.find().sort("date_created", -1):
-            doc["id"] = str(doc["_id"])
-            contributions.append(Contribution(**doc))
+        contributions = []
+        for result in results:
+            contributions.append(Contribution(
+                id=str(result["id"]),
+                username=result["username"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                product_name=result["product_name"],
+                amount=float(result["amount"]),
+                description=result["description"],
+                date_created=result["date_created"]
+            ))
         
         return contributions
     
     async def get_all_contributions_with_users(self) -> List[dict]:
         db = await self.get_database()
+        query = """
+            SELECT c.*, u.full_name as user_full_name
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            ORDER BY c.date_created DESC
+        """
+        results = await db.fetch_all(query)
+        
         contributions = []
-        
-        # Aggregate contributions with user information
-        pipeline = [
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "username",
-                    "foreignField": "username",
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$sort": {"date_created": -1}
-            }
-        ]
-        
-        async for doc in db.contributions.aggregate(pipeline):
-            contribution_data = {
-                "id": str(doc["_id"]),
-                "username": doc["username"],
-                "home_id": doc.get("home_id", ""),
-                "product_name": doc["product_name"],
-                "amount": doc["amount"],
-                "description": doc.get("description", ""),
-                "date_created": doc["date_created"],
-                "user_full_name": doc["user_info"]["full_name"]
-            }
-            contributions.append(contribution_data)
+        for result in results:
+            contributions.append({
+                "id": str(result["id"]),
+                "username": result["username"],
+                "home_id": str(result["home_id"]) if result["home_id"] else "",
+                "product_name": result["product_name"],
+                "amount": float(result["amount"]),
+                "description": result["description"],
+                "date_created": result["date_created"],
+                "user_full_name": result["user_full_name"]
+            })
         
         return contributions
 
     async def get_home_contributions_with_users(self, home_id: str) -> List[dict]:
         db = await self.get_database()
+        query = """
+            SELECT c.*, u.full_name as user_full_name
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            WHERE c.home_id = :home_id
+            ORDER BY c.date_created DESC
+        """
+        results = await db.fetch_all(query, {"home_id": int(home_id)})
+        
         contributions = []
-        
-        # Aggregate contributions with user information for a specific home
-        pipeline = [
-            {
-                "$match": {"home_id": home_id}
-            },
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "username",
-                    "foreignField": "username",
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$sort": {"date_created": -1}
-            }
-        ]
-        
-        async for doc in db.contributions.aggregate(pipeline):
-            contribution_data = {
-                "id": str(doc["_id"]),
-                "username": doc["username"],
-                "home_id": doc["home_id"],
-                "product_name": doc["product_name"],
-                "amount": doc["amount"],
-                "description": doc.get("description", ""),
-                "date_created": doc["date_created"],
-                "user_full_name": doc["user_info"]["full_name"]
-            }
-            contributions.append(contribution_data)
+        for result in results:
+            contributions.append({
+                "id": str(result["id"]),
+                "username": result["username"],
+                "home_id": str(result["home_id"]),
+                "product_name": result["product_name"],
+                "amount": float(result["amount"]),
+                "description": result["description"],
+                "date_created": result["date_created"],
+                "user_full_name": result["user_full_name"]
+            })
         
         return contributions
     
     async def delete_contribution(self, contribution_id: str, username: str) -> bool:
         db = await self.get_database()
-        from bson import ObjectId
         
-        # Only allow deletion if the contribution belongs to the user
-        result = await db.contributions.delete_one({
-            "_id": ObjectId(contribution_id),
-            "username": username
-        })
+        query = "DELETE FROM contributions WHERE id = :id AND username = :username"
+        result = await db.execute(query, {"id": int(contribution_id), "username": username})
         
-        return result.deleted_count > 0
+        return result > 0
     
     async def get_analytics(self) -> dict:
         db = await self.get_database()
         
         # Total contributions
-        total_contributions = await db.contributions.count_documents({})
+        total_contributions_query = "SELECT COUNT(*) as count FROM contributions"
+        total_contributions_result = await db.fetch_one(total_contributions_query)
+        total_contributions = total_contributions_result["count"]
         
         # Total amount
-        pipeline_total = [
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        total_amount_result = []
-        async for doc in db.contributions.aggregate(pipeline_total):
-            total_amount_result.append(doc)
-        total_amount = total_amount_result[0]["total"] if total_amount_result else 0
+        total_amount_query = "SELECT COALESCE(SUM(amount), 0) as total FROM contributions"
+        total_amount_result = await db.fetch_one(total_amount_query)
+        total_amount = float(total_amount_result["total"])
         
         # Contributions by user
-        pipeline_by_user = [
+        contributions_by_user_query = """
+            SELECT 
+                c.username,
+                u.full_name,
+                COALESCE(SUM(c.amount), 0) as total_amount,
+                COUNT(c.id) as count
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            GROUP BY c.username, u.full_name
+            ORDER BY total_amount DESC
+        """
+        contributions_by_user_results = await db.fetch_all(contributions_by_user_query)
+        contributions_by_user = [
             {
-                "$group": {
-                    "_id": "$username",
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "_id",
-                    "foreignField": "username",
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "username": result["username"],
+                "full_name": result["full_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in contributions_by_user_results
         ]
-        
-        contributions_by_user = []
-        async for doc in db.contributions.aggregate(pipeline_by_user):
-            contributions_by_user.append({
-                "username": doc["_id"],
-                "full_name": doc["user_info"]["full_name"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         # Contributions by product (excluding fund transfers)
-        pipeline_by_product = [
+        contributions_by_product_query = """
+            SELECT 
+                product_name,
+                COALESCE(SUM(amount), 0) as total_amount,
+                COUNT(id) as count
+            FROM contributions
+            WHERE product_name NOT LIKE 'Fund transfer%' AND product_name NOT LIKE 'Fund received%'
+            GROUP BY product_name
+            ORDER BY total_amount DESC
+        """
+        contributions_by_product_results = await db.fetch_all(contributions_by_product_query)
+        contributions_by_product = [
             {
-                "$match": {
-                    "product_name": {
-                        "$not": {
-                            "$regex": "^Fund (transfer|received)"
-                        }
-                    }
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$product_name",
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "product_name": result["product_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in contributions_by_product_results
         ]
-        
-        contributions_by_product = []
-        async for doc in db.contributions.aggregate(pipeline_by_product):
-            contributions_by_product.append({
-                "product_name": doc["_id"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         # Monthly contributions
-        pipeline_monthly = [
+        monthly_contributions_query = """
+            SELECT 
+                EXTRACT(YEAR FROM date_created) as year,
+                EXTRACT(MONTH FROM date_created) as month,
+                COALESCE(SUM(amount), 0) as total_amount,
+                COUNT(id) as count
+            FROM contributions
+            GROUP BY EXTRACT(YEAR FROM date_created), EXTRACT(MONTH FROM date_created)
+            ORDER BY year DESC, month DESC
+        """
+        monthly_contributions_results = await db.fetch_all(monthly_contributions_query)
+        monthly_contributions = [
             {
-                "$group": {
-                    "_id": {
-                        "year": {"$year": "$date_created"},
-                        "month": {"$month": "$date_created"}
-                    },
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"_id.year": -1, "_id.month": -1}
+                "year": int(result["year"]),
+                "month": int(result["month"]),
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in monthly_contributions_results
         ]
-        
-        monthly_contributions = []
-        async for doc in db.contributions.aggregate(pipeline_monthly):
-            monthly_contributions.append({
-                "year": doc["_id"]["year"],
-                "month": doc["_id"]["month"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         return {
             "total_contributions": total_contributions,
@@ -383,111 +466,84 @@ class Database:
         db = await self.get_database()
         
         # Total contributions for this home
-        total_contributions = await db.contributions.count_documents({"home_id": home_id})
+        total_contributions_query = "SELECT COUNT(*) as count FROM contributions WHERE home_id = :home_id"
+        total_contributions_result = await db.fetch_one(total_contributions_query, {"home_id": int(home_id)})
+        total_contributions = total_contributions_result["count"]
         
         # Total amount for this home
-        pipeline_total = [
-            {"$match": {"home_id": home_id}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        total_amount_result = []
-        async for doc in db.contributions.aggregate(pipeline_total):
-            total_amount_result.append(doc)
-        total_amount = total_amount_result[0]["total"] if total_amount_result else 0
+        total_amount_query = "SELECT COALESCE(SUM(amount), 0) as total FROM contributions WHERE home_id = :home_id"
+        total_amount_result = await db.fetch_one(total_amount_query, {"home_id": int(home_id)})
+        total_amount = float(total_amount_result["total"])
         
         # Contributions by user in this home
-        pipeline_by_user = [
-            {"$match": {"home_id": home_id}},
+        contributions_by_user_query = """
+            SELECT 
+                c.username,
+                u.full_name,
+                COALESCE(SUM(c.amount), 0) as total_amount,
+                COUNT(c.id) as count
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            WHERE c.home_id = :home_id
+            GROUP BY c.username, u.full_name
+            ORDER BY total_amount DESC
+        """
+        contributions_by_user_results = await db.fetch_all(contributions_by_user_query, {"home_id": int(home_id)})
+        contributions_by_user = [
             {
-                "$group": {
-                    "_id": "$username",
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "_id",
-                    "foreignField": "username",
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "username": result["username"],
+                "full_name": result["full_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in contributions_by_user_results
         ]
-        
-        contributions_by_user = []
-        async for doc in db.contributions.aggregate(pipeline_by_user):
-            contributions_by_user.append({
-                "username": doc["_id"],
-                "full_name": doc["user_info"]["full_name"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         # Contributions by product in this home (excluding fund transfers)
-        pipeline_by_product = [
+        contributions_by_product_query = """
+            SELECT 
+                product_name,
+                COALESCE(SUM(amount), 0) as total_amount,
+                COUNT(id) as count
+            FROM contributions
+            WHERE home_id = :home_id 
+                AND product_name NOT LIKE 'Fund transfer%' 
+                AND product_name NOT LIKE 'Fund received%'
+            GROUP BY product_name
+            ORDER BY total_amount DESC
+        """
+        contributions_by_product_results = await db.fetch_all(contributions_by_product_query, {"home_id": int(home_id)})
+        contributions_by_product = [
             {
-                "$match": {
-                    "home_id": home_id,
-                    "product_name": {
-                        "$not": {
-                            "$regex": "^Fund (transfer|received)"
-                        }
-                    }
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$product_name",
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "product_name": result["product_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in contributions_by_product_results
         ]
-        
-        contributions_by_product = []
-        async for doc in db.contributions.aggregate(pipeline_by_product):
-            contributions_by_product.append({
-                "product_name": doc["_id"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         # Monthly contributions for this home
-        pipeline_monthly = [
-            {"$match": {"home_id": home_id}},
+        monthly_contributions_query = """
+            SELECT 
+                EXTRACT(YEAR FROM date_created) as year,
+                EXTRACT(MONTH FROM date_created) as month,
+                COALESCE(SUM(amount), 0) as total_amount,
+                COUNT(id) as count
+            FROM contributions
+            WHERE home_id = :home_id
+            GROUP BY EXTRACT(YEAR FROM date_created), EXTRACT(MONTH FROM date_created)
+            ORDER BY year DESC, month DESC
+        """
+        monthly_contributions_results = await db.fetch_all(monthly_contributions_query, {"home_id": int(home_id)})
+        monthly_contributions = [
             {
-                "$group": {
-                    "_id": {
-                        "year": {"$year": "$date_created"},
-                        "month": {"$month": "$date_created"}
-                    },
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"_id.year": -1, "_id.month": -1}
+                "year": int(result["year"]),
+                "month": int(result["month"]),
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in monthly_contributions_results
         ]
-        
-        monthly_contributions = []
-        async for doc in db.contributions.aggregate(pipeline_monthly):
-            monthly_contributions.append({
-                "year": doc["_id"]["year"],
-                "month": doc["_id"]["month"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         return {
             "total_contributions": total_contributions,
@@ -501,20 +557,42 @@ class Database:
         db = await self.get_database()
         
         # User's total contributions (including positive and negative amounts)
-        user_contributions = await db.contributions.count_documents({"username": username})
+        user_contributions_query = "SELECT COUNT(*) as count FROM contributions WHERE username = :username"
+        user_contributions_result = await db.fetch_one(user_contributions_query, {"username": username})
+        user_contributions = user_contributions_result["count"]
         
         # User's total contribution amount
         user_total_amount = await self.get_user_balance(username)
         
         # User's transfer statistics
-        sent_transfers = await db.transfers.count_documents({"sender_username": username})
-        received_transfers = await db.transfers.count_documents({"recipient_username": username})
+        sent_transfers_query = "SELECT COUNT(*) as count FROM transfers WHERE sender_username = :username"
+        sent_transfers_result = await db.fetch_one(sent_transfers_query, {"username": username})
+        sent_transfers = sent_transfers_result["count"]
+        
+        received_transfers_query = "SELECT COUNT(*) as count FROM transfers WHERE recipient_username = :username"
+        received_transfers_result = await db.fetch_one(received_transfers_query, {"username": username})
+        received_transfers = received_transfers_result["count"]
         
         # User's recent contributions
-        recent_contributions = []
-        async for doc in db.contributions.find({"username": username}).sort("date_created", -1).limit(5):
-            doc["id"] = str(doc["_id"])
-            recent_contributions.append(Contribution(**doc))
+        recent_contributions_query = """
+            SELECT * FROM contributions 
+            WHERE username = :username 
+            ORDER BY date_created DESC 
+            LIMIT 5
+        """
+        recent_contributions_results = await db.fetch_all(recent_contributions_query, {"username": username})
+        recent_contributions = [
+            Contribution(
+                id=str(result["id"]),
+                username=result["username"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                product_name=result["product_name"],
+                amount=float(result["amount"]),
+                description=result["description"],
+                date_created=result["date_created"]
+            )
+            for result in recent_contributions_results
+        ]
         
         # Get contribution to average statistics
         contribution_stats = await self.get_contribution_to_average(username)
@@ -532,66 +610,66 @@ class Database:
     async def update_user_profile(self, username: str, full_name: str, email: str) -> bool:
         db = await self.get_database()
         
-        result = await db.users.update_one(
-            {"username": username},
-            {"$set": {"full_name": full_name, "email": email}}
-        )
+        query = "UPDATE users SET full_name = :full_name, email = :email WHERE username = :username"
+        result = await db.execute(query, {
+            "full_name": full_name,
+            "email": email,
+            "username": username
+        })
         
-        return result.modified_count > 0
+        return result > 0
 
     async def get_monthly_contributions(self, year: int = None, month: int = None) -> List[dict]:
         """Get contributions filtered by month and year"""
         db = await self.get_database()
         
-        # Build match condition
-        match_condition = {}
+        # Build WHERE condition
+        where_conditions = []
+        params = {}
+        
         if year and month:
             # Get contributions for specific month
-            from datetime import datetime
-            start_date = datetime(year, month, 1)
-            if month == 12:
-                end_date = datetime(year + 1, 1, 1)
-            else:
-                end_date = datetime(year, month + 1, 1)
-            match_condition["date_created"] = {"$gte": start_date, "$lt": end_date}
+            where_conditions.append("EXTRACT(YEAR FROM date_created) = :year AND EXTRACT(MONTH FROM date_created) = :month")
+            params["year"] = year
+            params["month"] = month
         elif year:
             # Get contributions for entire year
-            from datetime import datetime
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year + 1, 1, 1)
-            match_condition["date_created"] = {"$gte": start_date, "$lt": end_date}
+            where_conditions.append("EXTRACT(YEAR FROM date_created) = :year")
+            params["year"] = year
         
-        # Aggregate contributions with user information
-        pipeline = [
-            {"$match": match_condition},
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "username", 
-                    "foreignField": "username",
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$sort": {"date_created": -1}
-            }
-        ]
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Get contributions with user information
+        query = f"""
+            SELECT 
+                c.id,
+                c.username,
+                c.product_name,
+                c.amount,
+                c.description,
+                c.date_created,
+                u.full_name as user_full_name
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            {where_clause}
+            ORDER BY c.date_created DESC
+        """
+        
+        results = await db.fetch_all(query, params)
         
         contributions = []
-        async for doc in db.contributions.aggregate(pipeline):
-            contribution_data = {
-                "id": str(doc["_id"]),
-                "username": doc["username"],
-                "product_name": doc["product_name"],
-                "amount": doc["amount"],
-                "description": doc.get("description", ""),
-                "date_created": doc["date_created"],
-                "user_full_name": doc["user_info"]["full_name"]
-            }
-            contributions.append(contribution_data)
+        for result in results:
+            contributions.append({
+                "id": str(result["id"]),
+                "username": result["username"],
+                "product_name": result["product_name"],
+                "amount": float(result["amount"]),
+                "description": result["description"],
+                "date_created": result["date_created"],
+                "user_full_name": result["user_full_name"]
+            })
         
         return contributions
 
@@ -599,56 +677,53 @@ class Database:
         """Get contributions filtered by home, month and year"""
         db = await self.get_database()
         
-        # Build match condition
-        match_condition = {"home_id": home_id}
+        # Build WHERE condition
+        where_conditions = ["c.home_id = :home_id"]
+        params = {"home_id": int(home_id)}
+        
         if year and month:
             # Get contributions for specific month
-            from datetime import datetime
-            start_date = datetime(year, month, 1)
-            if month == 12:
-                end_date = datetime(year + 1, 1, 1)
-            else:
-                end_date = datetime(year, month + 1, 1)
-            match_condition["date_created"] = {"$gte": start_date, "$lt": end_date}
+            where_conditions.append("EXTRACT(YEAR FROM c.date_created) = :year AND EXTRACT(MONTH FROM c.date_created) = :month")
+            params["year"] = year
+            params["month"] = month
         elif year:
             # Get contributions for entire year
-            from datetime import datetime
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year + 1, 1, 1)
-            match_condition["date_created"] = {"$gte": start_date, "$lt": end_date}
+            where_conditions.append("EXTRACT(YEAR FROM c.date_created) = :year")
+            params["year"] = year
         
-        # Aggregate contributions with user information
-        pipeline = [
-            {"$match": match_condition},
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "username", 
-                    "foreignField": "username",
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$sort": {"date_created": -1}
-            }
-        ]
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Get contributions with user information
+        query = f"""
+            SELECT 
+                c.id,
+                c.username,
+                c.home_id,
+                c.product_name,
+                c.amount,
+                c.description,
+                c.date_created,
+                u.full_name as user_full_name
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            {where_clause}
+            ORDER BY c.date_created DESC
+        """
+        
+        results = await db.fetch_all(query, params)
         
         contributions = []
-        async for doc in db.contributions.aggregate(pipeline):
-            contribution_data = {
-                "id": str(doc["_id"]),
-                "username": doc["username"],
-                "home_id": doc["home_id"],
-                "product_name": doc["product_name"],
-                "amount": doc["amount"],
-                "description": doc.get("description", ""),
-                "date_created": doc["date_created"],
-                "user_full_name": doc["user_info"]["full_name"]
-            }
-            contributions.append(contribution_data)
+        for result in results:
+            contributions.append({
+                "id": str(result["id"]),
+                "username": result["username"],
+                "home_id": str(result["home_id"]),
+                "product_name": result["product_name"],
+                "amount": float(result["amount"]),
+                "description": result["description"],
+                "date_created": result["date_created"],
+                "user_full_name": result["user_full_name"]
+            })
         
         return contributions
 
@@ -656,101 +731,67 @@ class Database:
         """Get monthly summary statistics"""
         db = await self.get_database()
         
-        from datetime import datetime
-        start_date = datetime(year, month, 1)
-        if month == 12:
-            end_date = datetime(year + 1, 1, 1)
-        else:
-            end_date = datetime(year, month + 1, 1)
-        
-        match_condition = {"date_created": {"$gte": start_date, "$lt": end_date}}
-        
         # Total contributions and amount for the month
-        total_pipeline = [
-            {"$match": match_condition},
-            {
-                "$group": {
-                    "_id": None,
-                    "total_amount": {"$sum": "$amount"},
-                    "total_count": {"$sum": 1}
-                }
-            }
-        ]
-        
-        total_result = []
-        async for doc in db.contributions.aggregate(total_pipeline):
-            total_result.append(doc)
-        
-        total_amount = total_result[0]["total_amount"] if total_result else 0
-        total_count = total_result[0]["total_count"] if total_result else 0
+        total_query = """
+            SELECT 
+                COUNT(*) as total_count,
+                COALESCE(SUM(amount), 0) as total_amount
+            FROM contributions
+            WHERE EXTRACT(YEAR FROM date_created) = :year 
+                AND EXTRACT(MONTH FROM date_created) = :month
+        """
+        total_result = await db.fetch_one(total_query, {"year": year, "month": month})
+        total_amount = float(total_result["total_amount"])
+        total_count = total_result["total_count"]
         
         # Contributions by user for the month
-        user_pipeline = [
-            {"$match": match_condition},
+        user_query = """
+            SELECT 
+                c.username,
+                u.full_name,
+                COALESCE(SUM(c.amount), 0) as total_amount,
+                COUNT(c.id) as count
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            WHERE EXTRACT(YEAR FROM c.date_created) = :year 
+                AND EXTRACT(MONTH FROM c.date_created) = :month
+            GROUP BY c.username, u.full_name
+            ORDER BY total_amount DESC
+        """
+        user_results = await db.fetch_all(user_query, {"year": year, "month": month})
+        user_contributions = [
             {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "username",
-                    "foreignField": "username", 
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$group": {
-                    "_id": "$username",
-                    "full_name": {"$first": "$user_info.full_name"},
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "username": result["username"],
+                "full_name": result["full_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in user_results
         ]
-        
-        user_contributions = []
-        async for doc in db.contributions.aggregate(user_pipeline):
-            user_contributions.append({
-                "username": doc["_id"],
-                "full_name": doc["full_name"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         # Contributions by product for the month (excluding fund transfers)
-        product_pipeline = [
+        product_query = """
+            SELECT 
+                product_name,
+                COALESCE(SUM(amount), 0) as total_amount,
+                COUNT(id) as count
+            FROM contributions
+            WHERE EXTRACT(YEAR FROM date_created) = :year 
+                AND EXTRACT(MONTH FROM date_created) = :month
+                AND product_name NOT LIKE 'Fund transfer%' 
+                AND product_name NOT LIKE 'Fund received%'
+            GROUP BY product_name
+            ORDER BY total_amount DESC
+        """
+        product_results = await db.fetch_all(product_query, {"year": year, "month": month})
+        product_contributions = [
             {
-                "$match": {
-                    **match_condition,
-                    "product_name": {
-                        "$not": {
-                            "$regex": "^Fund (transfer|received)"
-                        }
-                    }
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$product_name",
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "product_name": result["product_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in product_results
         ]
-        
-        product_contributions = []
-        async for doc in db.contributions.aggregate(product_pipeline):
-            product_contributions.append({
-                "product_name": doc["_id"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         return {
             "year": year,
@@ -765,104 +806,70 @@ class Database:
         """Get monthly summary statistics for a specific home"""
         db = await self.get_database()
         
-        from datetime import datetime
-        start_date = datetime(year, month, 1)
-        if month == 12:
-            end_date = datetime(year + 1, 1, 1)
-        else:
-            end_date = datetime(year, month + 1, 1)
-        
-        match_condition = {
-            "home_id": home_id,
-            "date_created": {"$gte": start_date, "$lt": end_date}
-        }
-        
         # Total contributions and amount for the month in this home
-        total_pipeline = [
-            {"$match": match_condition},
-            {
-                "$group": {
-                    "_id": None,
-                    "total_amount": {"$sum": "$amount"},
-                    "total_count": {"$sum": 1}
-                }
-            }
-        ]
-        
-        total_result = []
-        async for doc in db.contributions.aggregate(total_pipeline):
-            total_result.append(doc)
-        
-        total_amount = total_result[0]["total_amount"] if total_result else 0
-        total_count = total_result[0]["total_count"] if total_result else 0
+        total_query = """
+            SELECT 
+                COUNT(*) as total_count,
+                COALESCE(SUM(amount), 0) as total_amount
+            FROM contributions
+            WHERE home_id = :home_id
+                AND EXTRACT(YEAR FROM date_created) = :year 
+                AND EXTRACT(MONTH FROM date_created) = :month
+        """
+        total_result = await db.fetch_one(total_query, {"home_id": int(home_id), "year": year, "month": month})
+        total_amount = float(total_result["total_amount"])
+        total_count = total_result["total_count"]
         
         # Contributions by user for the month in this home
-        user_pipeline = [
-            {"$match": match_condition},
+        user_query = """
+            SELECT 
+                c.username,
+                u.full_name,
+                COALESCE(SUM(c.amount), 0) as total_amount,
+                COUNT(c.id) as count
+            FROM contributions c
+            JOIN users u ON c.username = u.username
+            WHERE c.home_id = :home_id
+                AND EXTRACT(YEAR FROM c.date_created) = :year 
+                AND EXTRACT(MONTH FROM c.date_created) = :month
+            GROUP BY c.username, u.full_name
+            ORDER BY total_amount DESC
+        """
+        user_results = await db.fetch_all(user_query, {"home_id": int(home_id), "year": year, "month": month})
+        user_contributions = [
             {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "username",
-                    "foreignField": "username", 
-                    "as": "user_info"
-                }
-            },
-            {
-                "$unwind": "$user_info"
-            },
-            {
-                "$group": {
-                    "_id": "$username",
-                    "full_name": {"$first": "$user_info.full_name"},
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "username": result["username"],
+                "full_name": result["full_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in user_results
         ]
-        
-        user_contributions = []
-        async for doc in db.contributions.aggregate(user_pipeline):
-            user_contributions.append({
-                "username": doc["_id"],
-                "full_name": doc["full_name"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         # Contributions by product for the month in this home (excluding fund transfers)
-        product_pipeline = [
+        product_query = """
+            SELECT 
+                product_name,
+                COALESCE(SUM(amount), 0) as total_amount,
+                COUNT(id) as count
+            FROM contributions
+            WHERE home_id = :home_id
+                AND EXTRACT(YEAR FROM date_created) = :year 
+                AND EXTRACT(MONTH FROM date_created) = :month
+                AND product_name NOT LIKE 'Fund transfer%' 
+                AND product_name NOT LIKE 'Fund received%'
+            GROUP BY product_name
+            ORDER BY total_amount DESC
+        """
+        product_results = await db.fetch_all(product_query, {"home_id": int(home_id), "year": year, "month": month})
+        product_contributions = [
             {
-                "$match": {
-                    **match_condition,
-                    "product_name": {
-                        "$not": {
-                            "$regex": "^Fund (transfer|received)"
-                        }
-                    }
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$product_name",
-                    "total_amount": {"$sum": "$amount"},
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"total_amount": -1}
+                "product_name": result["product_name"],
+                "total_amount": float(result["total_amount"]),
+                "count": result["count"]
             }
+            for result in product_results
         ]
-        
-        product_contributions = []
-        async for doc in db.contributions.aggregate(product_pipeline):
-            product_contributions.append({
-                "product_name": doc["_id"],
-                "total_amount": doc["total_amount"],
-                "count": doc["count"]
-            })
         
         return {
             "year": year,
@@ -878,15 +885,9 @@ class Database:
         db = await self.get_database()
         
         # Get total contributions (including negative amounts from transfers received)
-        contributions_pipeline = [
-            {"$match": {"username": username}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        
-        contributions_result = []
-        async for doc in db.contributions.aggregate(contributions_pipeline):
-            contributions_result.append(doc)
-        total_contributions = contributions_result[0]["total"] if contributions_result else 0
+        query = "SELECT COALESCE(SUM(amount), 0) as total FROM contributions WHERE username = :username"
+        result = await db.fetch_one(query, {"username": username})
+        total_contributions = float(result["total"])
         
         return total_contributions
 
@@ -914,17 +915,21 @@ class Database:
             raise ValueError("Transfer amount must be positive")
         
         # Create the transfer record
-        transfer_dict = {
+        transfer_query = """
+            INSERT INTO transfers (sender_username, recipient_username, home_id, amount, description, date_created)
+            VALUES (:sender_username, :recipient_username, :home_id, :amount, :description, :date_created)
+            RETURNING id, sender_username, recipient_username, home_id, amount, description, date_created
+        """
+        transfer_values = {
             "sender_username": sender_username,
             "recipient_username": transfer_data.recipient_username,
-            "home_id": sender.home_id,
+            "home_id": int(sender.home_id),
             "amount": transfer_data.amount,
             "description": transfer_data.description or "Fund transfer to balance contributions",
             "date_created": datetime.utcnow()
         }
         
-        result = await db.transfers.insert_one(transfer_dict)
-        transfer_dict["id"] = str(result.inserted_id)
+        result = await db.fetch_one(transfer_query, transfer_values)
         
         # Create contribution adjustments
         # Add contribution for sender (giver)
@@ -941,29 +946,61 @@ class Database:
             "description": f"Received from {sender.full_name}: {transfer_data.description or 'Balancing household contributions'}"
         })
         
-        return Transfer(**transfer_dict)
+        return Transfer(
+            id=str(result["id"]),
+            sender_username=result["sender_username"],
+            recipient_username=result["recipient_username"],
+            home_id=str(result["home_id"]),
+            amount=float(result["amount"]),
+            description=result["description"],
+            date_created=result["date_created"]
+        )
 
     async def get_user_transfers(self, username: str) -> dict:
         """Get all transfers for a user (sent and received)"""
         db = await self.get_database()
         
         # Get sent transfers
+        sent_query = "SELECT * FROM transfers WHERE sender_username = :username ORDER BY date_created DESC"
+        sent_results = await db.fetch_all(sent_query, {"username": username})
+        
         sent_transfers = []
-        async for doc in db.transfers.find({"sender_username": username}).sort("date_created", -1):
-            doc["id"] = str(doc["_id"])
+        for result in sent_results:
             # Get recipient full name
-            recipient = await self.get_user(doc["recipient_username"])
-            doc["recipient_full_name"] = recipient.full_name if recipient else "Unknown"
-            sent_transfers.append(Transfer(**doc))
+            recipient = await self.get_user(result["recipient_username"])
+            transfer = Transfer(
+                id=str(result["id"]),
+                sender_username=result["sender_username"],
+                recipient_username=result["recipient_username"],
+                home_id=str(result["home_id"]),
+                amount=float(result["amount"]),
+                description=result["description"],
+                date_created=result["date_created"]
+            )
+            # Add recipient full name as an attribute
+            transfer.recipient_full_name = recipient.full_name if recipient else "Unknown"
+            sent_transfers.append(transfer)
         
         # Get received transfers
+        received_query = "SELECT * FROM transfers WHERE recipient_username = :username ORDER BY date_created DESC"
+        received_results = await db.fetch_all(received_query, {"username": username})
+        
         received_transfers = []
-        async for doc in db.transfers.find({"recipient_username": username}).sort("date_created", -1):
-            doc["id"] = str(doc["_id"])
+        for result in received_results:
             # Get sender full name
-            sender = await self.get_user(doc["sender_username"])
-            doc["sender_full_name"] = sender.full_name if sender else "Unknown"
-            received_transfers.append(Transfer(**doc))
+            sender = await self.get_user(result["sender_username"])
+            transfer = Transfer(
+                id=str(result["id"]),
+                sender_username=result["sender_username"],
+                recipient_username=result["recipient_username"],
+                home_id=str(result["home_id"]),
+                amount=float(result["amount"]),
+                description=result["description"],
+                date_created=result["date_created"]
+            )
+            # Add sender full name as an attribute
+            transfer.sender_full_name = sender.full_name if sender else "Unknown"
+            received_transfers.append(transfer)
         
         return {
             "sent": sent_transfers,
@@ -973,11 +1010,21 @@ class Database:
     async def get_all_users(self) -> List[UserInDB]:
         """Get all users for transfer recipient selection"""
         db = await self.get_database()
-        users = []
+        query = "SELECT id, username, email, full_name, is_active, home_id, date_created FROM users ORDER BY full_name"
+        results = await db.fetch_all(query)
         
-        async for doc in db.users.find({}, {"hashed_password": 0}).sort("full_name", 1):
-            doc["id"] = str(doc["_id"])
-            users.append(UserInDB(**doc, hashed_password=""))
+        users = []
+        for result in results:
+            users.append(UserInDB(
+                id=str(result["id"]),
+                username=result["username"],
+                email=result["email"],
+                full_name=result["full_name"],
+                hashed_password="",  # Don't return password hash
+                is_active=result["is_active"],
+                home_id=str(result["home_id"]) if result["home_id"] else None,
+                date_created=result["date_created"]
+            ))
         
         return users
 
@@ -985,34 +1032,67 @@ class Database:
     async def create_home(self, home_data: HomeCreate, leader_username: str) -> Home:
         db = await self.get_database()
         
-        home_dict = {
+        home_query = """
+            INSERT INTO homes (name, description, leader_username, date_created)
+            VALUES (:name, :description, :leader_username, :date_created)
+            RETURNING id, name, description, leader_username, date_created
+        """
+        home_values = {
             "name": home_data.name,
             "description": home_data.description,
             "leader_username": leader_username,
-            "members": [leader_username],
             "date_created": datetime.utcnow()
         }
         
-        result = await db.homes.insert_one(home_dict)
-        home_dict["id"] = str(result.inserted_id)
+        result = await db.fetch_one(home_query, home_values)
+        home_id = result["id"]
         
         # Update the user's home_id
-        await db.users.update_one(
-            {"username": leader_username},
-            {"$set": {"home_id": str(result.inserted_id)}}
+        await db.execute(
+            "UPDATE users SET home_id = :home_id WHERE username = :username",
+            {"home_id": home_id, "username": leader_username}
         )
         
-        return Home(**home_dict)
+        # Add to home_members table
+        await db.execute(
+            "INSERT INTO home_members (home_id, username) VALUES (:home_id, :username)",
+            {"home_id": home_id, "username": leader_username}
+        )
+        
+        # Get members list (just the leader for now)
+        members = [leader_username]
+        
+        return Home(
+            id=str(result["id"]),
+            name=result["name"],
+            description=result["description"],
+            leader_username=result["leader_username"],
+            members=members,
+            date_created=result["date_created"]
+        )
 
     async def get_home(self, home_id: str) -> Optional[Home]:
         db = await self.get_database()
-        from bson import ObjectId
         
         try:
-            home_doc = await db.homes.find_one({"_id": ObjectId(home_id)})
-            if home_doc:
-                home_doc["id"] = str(home_doc["_id"])
-                return Home(**home_doc)
+            # Get home info
+            home_query = "SELECT * FROM homes WHERE id = :home_id"
+            home_result = await db.fetch_one(home_query, {"home_id": int(home_id)})
+            
+            if home_result:
+                # Get members
+                members_query = "SELECT username FROM home_members WHERE home_id = :home_id"
+                members_results = await db.fetch_all(members_query, {"home_id": int(home_id)})
+                members = [row["username"] for row in members_results]
+                
+                return Home(
+                    id=str(home_result["id"]),
+                    name=home_result["name"],
+                    description=home_result["description"],
+                    leader_username=home_result["leader_username"],
+                    members=members,
+                    date_created=home_result["date_created"]
+                )
         except:
             pass
         return None
@@ -1026,7 +1106,6 @@ class Database:
 
     async def add_member_to_home(self, home_id: str, username: str, leader_username: str) -> bool:
         db = await self.get_database()
-        from bson import ObjectId
         
         # Check if the requester is the home leader
         home = await self.get_home(home_id)
@@ -1040,15 +1119,15 @@ class Database:
         
         try:
             # Add user to home members
-            await db.homes.update_one(
-                {"_id": ObjectId(home_id)},
-                {"$addToSet": {"members": username}}
+            await db.execute(
+                "INSERT INTO home_members (home_id, username) VALUES (:home_id, :username)",
+                {"home_id": int(home_id), "username": username}
             )
             
             # Update user's home_id
-            await db.users.update_one(
-                {"username": username},
-                {"$set": {"home_id": home_id}}
+            await db.execute(
+                "UPDATE users SET home_id = :home_id WHERE username = :username",
+                {"home_id": int(home_id), "username": username}
             )
             
             return True
@@ -1057,7 +1136,6 @@ class Database:
 
     async def remove_member_from_home(self, home_id: str, username: str, leader_username: str) -> bool:
         db = await self.get_database()
-        from bson import ObjectId
         
         # Check if the requester is the home leader
         home = await self.get_home(home_id)
@@ -1070,15 +1148,15 @@ class Database:
         
         try:
             # Remove user from home members
-            await db.homes.update_one(
-                {"_id": ObjectId(home_id)},
-                {"$pull": {"members": username}}
+            await db.execute(
+                "DELETE FROM home_members WHERE home_id = :home_id AND username = :username",
+                {"home_id": int(home_id), "username": username}
             )
             
             # Remove user's home_id
-            await db.users.update_one(
-                {"username": username},
-                {"$unset": {"home_id": ""}}
+            await db.execute(
+                "UPDATE users SET home_id = NULL WHERE username = :username",
+                {"username": username}
             )
             
             return True
@@ -1122,23 +1200,24 @@ class Database:
             return False
         
         try:
-            from bson import ObjectId
-            
             # Remove user from home members
-            await db.homes.update_one(
-                {"_id": ObjectId(user.home_id)},
-                {"$pull": {"members": username}}
+            await db.execute(
+                "DELETE FROM home_members WHERE home_id = :home_id AND username = :username",
+                {"home_id": int(user.home_id), "username": username}
             )
             
             # Remove user's home_id
-            await db.users.update_one(
-                {"username": username},
-                {"$unset": {"home_id": ""}}
+            await db.execute(
+                "UPDATE users SET home_id = NULL WHERE username = :username",
+                {"username": username}
             )
             
             # If user was the leader and the only member, delete the home
             if home.leader_username == username and len(home.members) == 1:
-                await db.homes.delete_one({"_id": ObjectId(user.home_id)})
+                await db.execute(
+                    "DELETE FROM homes WHERE id = :home_id",
+                    {"home_id": int(user.home_id)}
+                )
             
             return True
         except:
@@ -1150,29 +1229,36 @@ class Database:
         
         try:
             # Check if home exists
-            home = await db.homes.find_one({"name": home_name})
-            if not home:
+            home_query = "SELECT * FROM homes WHERE name = :home_name"
+            home_result = await db.fetch_one(home_query, {"home_name": home_name})
+            if not home_result:
                 return False
             
             # Check if user already has a pending request for this home
-            existing_request = await db.join_requests.find_one({
+            existing_query = """
+                SELECT * FROM join_requests 
+                WHERE username = :username AND home_id = :home_id AND status = 'pending'
+            """
+            existing_result = await db.fetch_one(existing_query, {
                 "username": username,
-                "home_id": str(home["_id"]),
-                "status": "pending"
+                "home_id": home_result["id"]
             })
-            if existing_request:
+            if existing_result:
                 return False
             
             # Create join request
-            request_data = {
+            request_query = """
+                INSERT INTO join_requests (username, home_id, home_name, status, date_created)
+                VALUES (:username, :home_id, :home_name, :status, :date_created)
+            """
+            await db.execute(request_query, {
                 "username": username,
-                "home_id": str(home["_id"]),
+                "home_id": home_result["id"],
                 "home_name": home_name,
                 "status": "pending",
                 "date_created": datetime.utcnow()
-            }
+            })
             
-            await db.join_requests.insert_one(request_data)
             return True
         except:
             return False
@@ -1182,24 +1268,24 @@ class Database:
         db = await self.get_database()
         
         try:
-            requests = []
-            cursor = db.join_requests.find({
-                "home_id": home_id,
-                "status": "pending"
-            }).sort("date_created", -1)
+            query = """
+                SELECT jr.*, u.full_name, u.email
+                FROM join_requests jr
+                JOIN users u ON jr.username = u.username
+                WHERE jr.home_id = :home_id AND jr.status = 'pending'
+                ORDER BY jr.date_created DESC
+            """
+            results = await db.fetch_all(query, {"home_id": int(home_id)})
             
-            async for request in cursor:
-                # Get user details
-                user = await db.users.find_one({"username": request["username"]})
-                if user:
-                    request_data = {
-                        "id": str(request["_id"]),
-                        "username": request["username"],
-                        "full_name": user["full_name"],
-                        "email": user["email"],
-                        "date_created": request["date_created"]
-                    }
-                    requests.append(request_data)
+            requests = []
+            for result in results:
+                requests.append({
+                    "id": str(result["id"]),
+                    "username": result["username"],
+                    "full_name": result["full_name"],
+                    "email": result["email"],
+                    "date_created": result["date_created"]
+                })
             
             return requests
         except:
@@ -1210,16 +1296,17 @@ class Database:
         db = await self.get_database()
         
         try:
-            request = await db.join_requests.find_one({
-                "username": username,
-                "status": "pending"
-            })
+            query = """
+                SELECT * FROM join_requests 
+                WHERE username = :username AND status = 'pending'
+            """
+            result = await db.fetch_one(query, {"username": username})
             
-            if request:
+            if result:
                 return {
-                    "id": str(request["_id"]),
-                    "home_name": request["home_name"],
-                    "date_created": request["date_created"]
+                    "id": str(result["id"]),
+                    "home_name": result["home_name"],
+                    "date_created": result["date_created"]
                 }
             return None
         except:
@@ -1230,34 +1317,34 @@ class Database:
         db = await self.get_database()
         
         try:
-            from bson import ObjectId
-            
             # Get the join request
-            request = await db.join_requests.find_one({"_id": ObjectId(request_id)})
-            if not request or request["status"] != "pending":
+            request_query = "SELECT * FROM join_requests WHERE id = :request_id"
+            request_result = await db.fetch_one(request_query, {"request_id": int(request_id)})
+            if not request_result or request_result["status"] != "pending":
                 return False
             
             # Verify that the current user is the leader of the home
-            home = await db.homes.find_one({"_id": ObjectId(request["home_id"])})
-            if not home or home["leader_username"] != leader_username:
+            home_query = "SELECT * FROM homes WHERE id = :home_id"
+            home_result = await db.fetch_one(home_query, {"home_id": request_result["home_id"]})
+            if not home_result or home_result["leader_username"] != leader_username:
                 return False
             
             # Add user to home
-            await db.users.update_one(
-                {"username": request["username"]},
-                {"$set": {"home_id": request["home_id"]}}
+            await db.execute(
+                "UPDATE users SET home_id = :home_id WHERE username = :username",
+                {"home_id": request_result["home_id"], "username": request_result["username"]}
             )
             
             # Add user to home members
-            await db.homes.update_one(
-                {"_id": ObjectId(request["home_id"])},
-                {"$addToSet": {"members": request["username"]}}
+            await db.execute(
+                "INSERT INTO home_members (home_id, username) VALUES (:home_id, :username)",
+                {"home_id": request_result["home_id"], "username": request_result["username"]}
             )
             
             # Update request status
-            await db.join_requests.update_one(
-                {"_id": ObjectId(request_id)},
-                {"$set": {"status": "approved", "date_processed": datetime.utcnow()}}
+            await db.execute(
+                "UPDATE join_requests SET status = 'approved', date_processed = :date_processed WHERE id = :request_id",
+                {"request_id": int(request_id), "date_processed": datetime.utcnow()}
             )
             
             return True
@@ -1269,22 +1356,22 @@ class Database:
         db = await self.get_database()
         
         try:
-            from bson import ObjectId
-            
             # Get the join request
-            request = await db.join_requests.find_one({"_id": ObjectId(request_id)})
-            if not request or request["status"] != "pending":
+            request_query = "SELECT * FROM join_requests WHERE id = :request_id"
+            request_result = await db.fetch_one(request_query, {"request_id": int(request_id)})
+            if not request_result or request_result["status"] != "pending":
                 return False
             
             # Verify that the current user is the leader of the home
-            home = await db.homes.find_one({"_id": ObjectId(request["home_id"])})
-            if not home or home["leader_username"] != leader_username:
+            home_query = "SELECT * FROM homes WHERE id = :home_id"
+            home_result = await db.fetch_one(home_query, {"home_id": request_result["home_id"]})
+            if not home_result or home_result["leader_username"] != leader_username:
                 return False
             
             # Update request status
-            await db.join_requests.update_one(
-                {"_id": ObjectId(request_id)},
-                {"$set": {"status": "rejected", "date_processed": datetime.utcnow()}}
+            await db.execute(
+                "UPDATE join_requests SET status = 'rejected', date_processed = :date_processed WHERE id = :request_id",
+                {"request_id": int(request_id), "date_processed": datetime.utcnow()}
             )
             
             return True
@@ -1305,34 +1392,32 @@ class Database:
             if not home:
                 return []
             
-            # Get all home members (excluding sender)
-            eligible_recipients = []
-            for member_username in home.members:
-                if member_username == sender_username:
-                    continue
-                
-                # Get member's total contribution for display purposes
-                member_total_pipeline = [
-                    {"$match": {"username": member_username, "home_id": sender.home_id}},
-                    {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-                ]
-                
-                member_total_result = []
-                async for doc in db.contributions.aggregate(member_total_pipeline):
-                    member_total_result.append(doc)
-                member_total = member_total_result[0]["total"] if member_total_result else 0
-                
-                # Include all home members regardless of contribution level
-                member = await self.get_user(member_username)
-                if member:
-                    eligible_recipients.append({
-                        "username": member_username,
-                        "full_name": member.full_name,
-                        "total_contribution": member_total
-                    })
+            # Get all home members (excluding sender) with their contribution totals
+            query = """
+                SELECT 
+                    u.username,
+                    u.full_name,
+                    COALESCE(SUM(c.amount), 0) as total_contribution
+                FROM users u
+                LEFT JOIN contributions c ON u.username = c.username AND c.home_id = :home_id
+                WHERE u.home_id = :home_id AND u.username != :sender_username
+                GROUP BY u.username, u.full_name
+                ORDER BY u.full_name
+            """
             
-            # Sort by full name for easy selection
-            eligible_recipients.sort(key=lambda x: x["full_name"])
+            results = await db.fetch_all(query, {
+                "home_id": int(sender.home_id),
+                "sender_username": sender_username
+            })
+            
+            eligible_recipients = []
+            for result in results:
+                eligible_recipients.append({
+                    "username": result["username"],
+                    "full_name": result["full_name"],
+                    "total_contribution": float(result["total_contribution"])
+                })
+            
             return eligible_recipients
             
         except Exception as e:
@@ -1367,26 +1452,14 @@ class Database:
                 }
             
             # Get total contributions by all home members
-            home_total_pipeline = [
-                {"$match": {"home_id": user.home_id}},
-                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-            ]
-            
-            home_total_result = []
-            async for doc in db.contributions.aggregate(home_total_pipeline):
-                home_total_result.append(doc)
-            home_total = home_total_result[0]["total"] if home_total_result else 0
+            home_total_query = "SELECT COALESCE(SUM(amount), 0) as total FROM contributions WHERE home_id = :home_id"
+            home_total_result = await db.fetch_one(home_total_query, {"home_id": int(user.home_id)})
+            home_total = float(home_total_result["total"])
             
             # Get user's total contributions
-            user_total_pipeline = [
-                {"$match": {"username": username, "home_id": user.home_id}},
-                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-            ]
-            
-            user_total_result = []
-            async for doc in db.contributions.aggregate(user_total_pipeline):
-                user_total_result.append(doc)
-            user_total = user_total_result[0]["total"] if user_total_result else 0
+            user_total_query = "SELECT COALESCE(SUM(amount), 0) as total FROM contributions WHERE username = :username AND home_id = :home_id"
+            user_total_result = await db.fetch_one(user_total_query, {"username": username, "home_id": int(user.home_id)})
+            user_total = float(user_total_result["total"])
             
             # Calculate average contribution per member
             home_members_count = len(home.members)

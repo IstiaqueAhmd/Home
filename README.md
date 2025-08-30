@@ -1,28 +1,41 @@
 # House Finance Tracker
 
-A simple web application to track house contributions and expenses among members using FastAPI and MongoDB.
+A simple web application to track house contributions and expenses among members using FastAPI and PostgreSQL.
 
 ## Features
 
 - **User Authentication**: Secure login and registration system
-- **Dashboard**: Overview of contributions and statistics
+- **Home Management**: Create and manage households with multiple members
 - **Contribution Tracking**: Add and view individual contributions
+- **Fund Transfers**: Transfer money between household members
+- **Analytics**: Detailed statistics and reports
+- **Monthly Reports**: View contributions by month and year
 - **Product Management**: Track which products were purchased
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Tech Stack
 
 - **Backend**: FastAPI (Python)
-- **Database**: MongoDB
+- **Database**: PostgreSQL
 - **Frontend**: HTML, CSS, Bootstrap 5, Jinja2 templates
 - **Authentication**: JWT tokens with bcrypt password hashing
+
+## Recent Updates
+
+🎉 **Database Migration**: This application has been migrated from MongoDB to PostgreSQL for better performance and data integrity.
+
+### What's New:
+- **PostgreSQL Database**: More robust and performant database backend
+- **Improved Analytics**: Better query performance for complex reports
+- **Data Migration Tool**: Seamless migration from existing MongoDB data
+- **Enhanced Schema**: Proper relational database design with foreign keys
 
 ## Setup Instructions
 
 ### Prerequisites
 
 - Python 3.8+
-- MongoDB (local installation or MongoDB Atlas)
+- PostgreSQL (local installation or cloud service like Railway, Supabase, etc.)
 
 ### Installation
 
@@ -45,60 +58,75 @@ A simple web application to track house contributions and expenses among members
    pip install -r requirements.txt
    ```
 
-4. **Configure environment variables**
+4. **Set up PostgreSQL Database**
+   
+   See [POSTGRESQL_SETUP.md](POSTGRESQL_SETUP.md) for detailed setup instructions.
+   
+   Quick setup:
+   - Create a PostgreSQL database
+   - Get your connection string (e.g., from Railway, Supabase, or local PostgreSQL)
+
+5. **Configure environment variables**
    ```bash
    copy .env.example .env  # On Windows
    # or
    cp .env.example .env    # On macOS/Linux
    ```
    
-   Edit `.env` file with your MongoDB connection details:
+   Edit `.env` file with your PostgreSQL connection details:
    ```
-   MONGODB_URL=mongodb://localhost:27017
-   DATABASE_NAME=house_finance_tracker
+   POSTGRES_URL=postgresql://username:password@host:port/database_name
    SECRET_KEY=your-secret-key-here
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
    ```
 
-5. **Start MongoDB**
-   - Make sure MongoDB is running locally, or
-   - Use MongoDB Atlas and update the connection string in `.env`
-
 6. **Run the application**
    ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
-   ```
-   
-   Or simply run the batch file on Windows:
-   ```bash
-   run.bat
+   uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 7. **Access the application**
    Open your browser and go to: `http://localhost:8000`
 
+## Migration from MongoDB
+
+If you have existing MongoDB data, you can migrate it to PostgreSQL:
+
+1. Keep your MongoDB connection details in `.env` temporarily
+2. Add your PostgreSQL connection string
+3. Run the migration script:
+   ```bash
+   python migrate_mongo_to_postgres.py
+   ```
+
+See [POSTGRESQL_SETUP.md](POSTGRESQL_SETUP.md) for detailed migration instructions.
+
 ## Usage
 
 1. **Register**: Create a new account with username, email, full name, and password
-2. **Login**: Use your credentials to access the dashboard
-3. **Add Contributions**: Click "Add Contribution" to record new purchases
-4. **View Dashboard**: See your contribution history and statistics
+2. **Create/Join Home**: Create a new household or request to join an existing one
+3. **Add Contributions**: Record purchases and expenses
+4. **Transfer Funds**: Send money to other household members to balance contributions
+5. **View Analytics**: Monitor spending patterns and contribution statistics
+6. **Monthly Reports**: Track expenses by month and year
 
 ## Project Structure
 
 ```
 house-finance-tracker/
-├── main.py              # Main FastAPI application
-├── models.py            # Pydantic models
-├── database.py          # MongoDB database operations
-├── auth.py              # Authentication and password hashing
-├── requirements.txt     # Python dependencies
-├── templates/           # HTML templates
-│   ├── base.html
-│   ├── dashboard.html
-│   ├── login.html
-│   └── register.html
+├── src/
+│   ├── main.py              # Main FastAPI application
+│   ├── models.py            # Pydantic models
+│   ├── database.py          # PostgreSQL database operations
+│   └── auth.py              # Authentication and password hashing
+├── templates/               # HTML templates
+├── static/                  # CSS and static files
+├── migrate_mongo_to_postgres.py  # Migration script
+├── POSTGRESQL_SETUP.md      # PostgreSQL setup guide
+├── requirements.txt         # Python dependencies
+└── README.md               # This file
+```
 ├── static/              # Static files (CSS, JS)
 │   └── css/
 │       └── style.css
