@@ -3,8 +3,8 @@ import asyncio
 from databases import Database as AsyncDatabase
 import asyncpg
 from typing import Optional, List
-from models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
-from auth import AuthManager
+from .models import User, UserCreate, UserInDB, Contribution, Transfer, TransferCreate, Home, HomeCreate
+from .auth import AuthManager
 from datetime import datetime
 from dotenv import load_dotenv
 
